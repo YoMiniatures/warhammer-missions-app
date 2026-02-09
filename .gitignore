@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Environment (keep .env.example as reference)
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+server-log.txt
+
+# TLS Certificates (keep .gitkeep)
+backend/certs/*.pem
+backend/certs/*.key
+backend/certs/*.crt
+
+# Design references (large media files)
+referencias/
+
+# Legacy code
+_old/
+
+# Python (legacy)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+dist/
+build/
+.cache/
+
+# Windows artifacts
+nul

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>PWA Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+            font-size: 14px;
+        }
+        h1 { color: #ff0; }
+        .status { margin: 10px 0; padding: 10px; background: #333; }
+        .ok { border-left: 4px solid #0f0; }
+        .error { border-left: 4px solid #f00; }
+        .warn { border-left: 4px solid #ff0; }
+        button {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        button:active { background: #666; }
+        #log {
+            background: #000;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry { margin: 2px 0; }
+    </style>
+</head>
+<body>
+    <h1>PWA Debug Tool</h1>
+
+    <div id="sw-status" class="status">Checking Service Worker...</div>
+    <div id="cache-status" class="status">Checking Cache...</div>
+    <div id="online-status" class="status">Checking Network...</div>
+
+    <div id="idb-status" class="status">Checking IndexedDB...</div>
+
+    <div style="margin-top: 20px;">
+        <button onclick="checkAll()">Refresh Status</button>
+        <button onclick="clearAndReload()">Clear All & Reload</button>
+        <button onclick="clearIndexedDB()">Clear IndexedDB Only</button>
+        <button onclick="clearSyncQueue()">Clear Sync Queue</button>
+        <button onclick="listCache()">List Cached Files</button>
+        <button onclick="listIndexedDB()">List IndexedDB Data</button>
+        <button onclick="testOffline()">Test Offline Mode</button>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        function log(msg, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = type === 'error' ? '#f00' : type === 'warn' ? '#ff0' : '#0f0';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+
+        async function checkServiceWorker() {
+            const statusDiv = document.getElementById('sw-status');
+
+            if (!('serviceWorker' in navigator)) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = 'Service Worker: NOT SUPPORTED';
+                return false;
+            }
+
+            try {
+                const reg = await navigator.serviceWorker.getRegistration();
+                if (reg) {
+                    const state = reg.active ? 'ACTIVE' : reg.waiting ? 'WAITING' : reg.installing ? 'INSTALLING' : 'NONE';
+                    statusDiv.className = 'status ' + (reg.active ? 'ok' : 'warn');
+                    statusDiv.innerHTML = `Service Worker: ${state}<br>Scope: ${reg.scope}`;
+                    log(`SW registered, state: ${state}`);
+                    return reg.active !== null;
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = 'Service Worker: NOT REGISTERED';
+                    log('No SW registration found', 'error');
+                    return false;
+                }
+            } catch (e) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `Service Worker Error: ${e.message}`;
+                log(`SW error: ${e.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function checkCache() {
+            const statusDiv = document.getElementById('cache-status');
+
+            try {
+                const cacheNames = await caches.keys();
+                const vaultCaches = cacheNames.filter(n => n.startsWith('wh-vault'));
+
+                if (vaultCaches.length === 0) {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = 'Cache: NO CACHES FOUND';
+                    log('No wh-vault caches found', 'error');
+                    return;
+                }
+
+                let totalFiles = 0;
+                for (const cacheName of vaultCaches) {
+                    const cache = await caches.open(cacheName);
+                    const keys = await cache.keys();
+                    totalFiles += keys.length;
+                }
+
+                statusDiv.className = 'status ok';
+                statusDiv.innerHTML = `Cache: ${vaultCaches.length} cache(s), ${totalFiles} files<br>Names: ${vaultCaches.join(', ')}`;
+                log(`Found ${totalFiles} cached files in ${vaultCaches.length} caches`);
+            } catch (e) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `Cache Error: ${e.message}`;
+                log(`Cache error: ${e.message}`, 'error');
+            }
+        }
+
+        function checkOnline() {
+            const statusDiv = document.getElementById('online-status');
+            statusDiv.className = 'status ' + (navigator.onLine ? 'ok' : 'warn');
+            statusDiv.innerHTML = `Network: ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}`;
+            log(`Network status: ${navigator.onLine ? 'online' : 'offline'}`);
+        }
+
+        async function listCache() {
+            log('--- CACHED FILES ---');
+            try {
+                const cacheNames = await caches.keys();
+                for (const cacheName of cacheNames) {
+                    if (!cacheName.startsWith('wh-vault')) continue;
+                    const cache = await caches.open(cacheName);
+                    const keys = await cache.keys();
+                    log(`[${cacheName}]:`);
+                    keys.forEach(req => {
+                        const url = new URL(req.url);
+                        log(`  ${url.pathname}`);
+                    });
+                }
+            } catch (e) {
+                log(`Error listing cache: ${e.message}`, 'error');
+            }
+        }
+
+        async function clearAndReload() {
+            log('Clearing all caches and IndexedDB...');
+            try {
+                // Clear Service Worker caches
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(n => caches.delete(n)));
+                log('SW Caches cleared');
+
+                // Clear IndexedDB
+                await new Promise((resolve) => {
+                    const req = indexedDB.deleteDatabase('wh-vault-db');
+                    req.onsuccess = () => {
+                        log('IndexedDB deleted');
+                        resolve();
+                    };
+                    req.onerror = () => {
+                        log('IndexedDB delete error', 'warn');
+                        resolve();
+                    };
+                    req.onblocked = () => {
+                        log('IndexedDB blocked', 'warn');
+                        resolve();
+                    };
+                });
+
+                // Unregister Service Worker
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+                log('SW unregistered');
+
+                log('Reloading in 2 seconds...');
+                setTimeout(() => location.reload(), 2000);
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function testOffline() {
+            log('To test offline:');
+            log('1. Make sure all checks are green');
+            log('2. Close this page');
+            log('3. Disconnect from server');
+            log('4. Open the PWA');
+            log('If it fails, the SW is not caching properly');
+        }
+
+        async function checkIndexedDB() {
+            const statusDiv = document.getElementById('idb-status');
+
+            try {
+                const dbRequest = indexedDB.open('wh-vault-db', 4);
+
+                dbRequest.onerror = () => {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = 'IndexedDB: ERROR - ' + dbRequest.error;
+                    log('IndexedDB error: ' + dbRequest.error, 'error');
+                };
+
+                dbRequest.onsuccess = async () => {
+                    const db = dbRequest.result;
+                    const storeNames = Array.from(db.objectStoreNames);
+
+                    let info = `IndexedDB: v${db.version}, ${storeNames.length} stores<br>`;
+
+                    // Count eventos
+                    try {
+                        const tx = db.transaction('eventos', 'readonly');
+                        const store = tx.objectStore('eventos');
+                        const countReq = store.count();
+
+                        await new Promise((resolve, reject) => {
+                            countReq.onsuccess = () => {
+                                info += `Eventos cached: ${countReq.result}`;
+                                if (countReq.result < 20) {
+                                    info += ' <span style="color:#f00">(CORRUPTED - too few!)</span>';
+                                }
+                                resolve();
+                            };
+                            countReq.onerror = reject;
+                        });
+                    } catch (e) {
+                        info += 'Eventos: error reading';
+                    }
+
+                    statusDiv.className = 'status ok';
+                    statusDiv.innerHTML = info;
+                    log(`IndexedDB: v${db.version}, stores: ${storeNames.join(', ')}`);
+                    db.close();
+                };
+            } catch (e) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `IndexedDB Error: ${e.message}`;
+                log(`IndexedDB error: ${e.message}`, 'error');
+            }
+        }
+
+        async function clearIndexedDB() {
+            log('Clearing IndexedDB...');
+            try {
+                await new Promise((resolve, reject) => {
+                    const req = indexedDB.deleteDatabase('wh-vault-db');
+                    req.onsuccess = () => {
+                        log('IndexedDB deleted successfully');
+                        resolve();
+                    };
+                    req.onerror = () => {
+                        log('Error deleting IndexedDB: ' + req.error, 'error');
+                        reject(req.error);
+                    };
+                    req.onblocked = () => {
+                        log('IndexedDB delete blocked - close other tabs', 'warn');
+                    };
+                });
+                await checkIndexedDB();
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function clearSyncQueue() {
+            log('Clearing sync queue...');
+            try {
+                const dbRequest = indexedDB.open('wh-vault-db', 4);
+
+                dbRequest.onsuccess = () => {
+                    const db = dbRequest.result;
+
+                    if (!db.objectStoreNames.contains('sync-queue')) {
+                        log('No sync-queue store found');
+                        db.close();
+                        return;
+                    }
+
+                    const tx = db.transaction('sync-queue', 'readwrite');
+                    const store = tx.objectStore('sync-queue');
+                    store.clear();
+
+                    tx.oncomplete = () => {
+                        log('Sync queue cleared successfully');
+                        db.close();
+                        // Update pending badge if on page
+                        if (window.WhVaultDB) {
+                            window.WhVaultDB.updatePendingBadge?.();
+                        }
+                    };
+                    tx.onerror = () => {
+                        log('Error clearing sync queue: ' + tx.error, 'error');
+                        db.close();
+                    };
+                };
+
+                dbRequest.onerror = () => {
+                    log('Error opening database: ' + dbRequest.error, 'error');
+                };
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function listIndexedDB() {
+            log('--- INDEXEDDB DATA ---');
+            try {
+                const dbRequest = indexedDB.open('wh-vault-db', 4);
+
+                dbRequest.onsuccess = async () => {
+                    const db = dbRequest.result;
+                    const storeNames = Array.from(db.objectStoreNames);
+
+                    for (const storeName of storeNames) {
+                        try {
+                            const tx = db.transaction(storeName, 'readonly');
+                            const store = tx.objectStore(storeName);
+                            const countReq = store.count();
+
+                            await new Promise((resolve) => {
+                                countReq.onsuccess = () => {
+                                    log(`  ${storeName}: ${countReq.result} items`);
+                                    resolve();
+                                };
+                                countReq.onerror = () => {
+                                    log(`  ${storeName}: error`, 'error');
+                                    resolve();
+                                };
+                            });
+                        } catch (e) {
+                            log(`  ${storeName}: ${e.message}`, 'error');
+                        }
+                    }
+
+                    db.close();
+                };
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function checkAll() {
+            log('--- RUNNING CHECKS ---');
+            await checkServiceWorker();
+            await checkCache();
+            checkOnline();
+            await checkIndexedDB();
+        }
+
+        // Initial check
+        checkAll();
+
+        // Listen for online/offline
+        window.addEventListener('online', () => { log('Network: went online'); checkOnline(); });
+        window.addEventListener('offline', () => { log('Network: went offline', 'warn'); checkOnline(); });
+    </script>
+</body>
+</html>

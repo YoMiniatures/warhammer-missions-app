@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>Auspex - Event Log</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "auspex-green": "#00ff41",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+    <style>
+        /* Material Symbols config */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f0f10;
+            color: #e5e7eb;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00ff41; }
+
+        /* Selection */
+        ::selection { background-color: #00ff41; color: black; }
+
+        /* Scanlines */
+        .scanlines {
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* CRT Glow effect */
+        .crt-glow { text-shadow: 0 0 5px rgba(0, 255, 65, 0.5); }
+        .crt-glow-strong { text-shadow: 0 0 8px rgba(0, 255, 65, 0.8); }
+
+        /* Slate border glow */
+        .slate-border {
+            box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.1), 0 0 5px rgba(0, 255, 65, 0.2);
+        }
+
+        /* Data slate gradient */
+        .bg-data-slate {
+            background: linear-gradient(145deg, #1e1e20 0%, #111112 100%);
+        }
+
+        /* Ticker animation */
+        @keyframes ticker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .animate-ticker {
+            animation: ticker 40s linear infinite;
+            width: max-content;
+        }
+        .animate-ticker:hover { animation-play-state: paused; }
+
+        /* Pending sync badge */
+        .pending-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 14px;
+            height: 14px;
+            background: #f59e0b;
+            border-radius: 9999px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3px;
+            border: 2px solid #221618;
+            z-index: 10;
+        }
+        .pending-badge.hidden { display: none; }
+
+        /* Syncing animation */
+        @keyframes syncPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-dot-syncing {
+            animation: syncPulse 1s ease-in-out infinite;
+            background-color: #f59e0b !important;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #16a34a;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        .toast-error { background: #d41132; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* FAB */
+        .fab {
+            position: fixed;
+            bottom: 80px;
+            right: 1rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41 0%, #00aa2a 100%);
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 20px rgba(0, 255, 65, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 60;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .fab:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 25px rgba(0, 255, 65, 0.6);
+        }
+        .fab:active { transform: scale(0.95); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            overflow-y: auto;
+            touch-action: pan-y;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-content {
+            background: linear-gradient(145deg, #1e1e20 0%, #111112 100%);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(0, 255, 65, 0.1);
+            touch-action: pan-y;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        .modal-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body { padding: 1rem; }
+        .modal-footer {
+            padding: 1rem;
+            border-top: 1px solid rgba(0, 255, 65, 0.2);
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .form-group { margin-bottom: 1rem; }
+        .form-label {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #00ff41;
+            margin-bottom: 0.5rem;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.625rem;
+            background: #181112;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 2px;
+            color: white;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #00ff41;
+        }
+        .form-select {
+            width: 100%;
+            padding: 0.625rem;
+            background: #181112;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 2px;
+            color: white;
+            font-size: 14px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .btn-primary {
+            background: linear-gradient(145deg, #00ff41 0%, #00aa2a 100%);
+            color: black;
+            border: none;
+            padding: 0.625rem 1.25rem;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        .btn-secondary {
+            background: #332224;
+            color: #888;
+            border: 1px solid #443234;
+            padding: 0.625rem 1.25rem;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+
+        /* ============================================
+           SLOT MACHINE / PICKER WHEEL STYLES
+           ============================================ */
+
+        /* Contenedor principal del picker */
+        .picker-viewport {
+            position: relative;
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Línea lateral con rayas (ruler) */
+        .picker-ruler {
+            position: absolute;
+            left: 1rem;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: repeating-linear-gradient(
+                180deg,
+                rgba(0, 255, 65, 0.5) 0px,
+                rgba(0, 255, 65, 0.5) 2px,
+                rgba(0, 255, 65, 0.15) 2px,
+                rgba(0, 255, 65, 0.15) 10px
+            );
+            z-index: 10;
+        }
+
+        /* Marcas grandes cada cierto intervalo */
+        .picker-ruler::before {
+            content: '';
+            position: absolute;
+            left: -4px;
+            top: 0;
+            bottom: 0;
+            width: 8px;
+            background: repeating-linear-gradient(
+                180deg,
+                transparent 0px,
+                transparent 48px,
+                rgba(0, 255, 65, 0.3) 48px,
+                rgba(0, 255, 65, 0.3) 52px
+            );
+        }
+
+        /* Área de selección central (highlight zone) */
+        .picker-selection-zone {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 90px;
+            border-top: 1px solid rgba(0, 255, 65, 0.3);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+            background: linear-gradient(180deg,
+                rgba(0, 255, 65, 0.05) 0%,
+                rgba(0, 255, 65, 0.1) 50%,
+                rgba(0, 255, 65, 0.05) 100%
+            );
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Gradiente de fade en los bordes */
+        .picker-fade-top, .picker-fade-bottom {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 80px;
+            pointer-events: none;
+            z-index: 6;
+        }
+        .picker-fade-top {
+            top: 0;
+            background: linear-gradient(180deg, #0f0f10 0%, transparent 100%);
+        }
+        .picker-fade-bottom {
+            bottom: 0;
+            background: linear-gradient(0deg, #0f0f10 0%, transparent 100%);
+        }
+
+        /* Contenedor de items (se mueve con transform) */
+        .picker-track {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            padding-left: 2.5rem;
+            padding-right: 1rem;
+            transition: transform 0.1s ease-out;
+            will-change: transform;
+        }
+
+        /* Item individual del picker */
+        .picker-item {
+            padding: 0.75rem 0;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+            opacity: 0.3;
+            transform: scale(0.92) translateZ(0);
+            transform-origin: center left;
+        }
+        .picker-item.active {
+            opacity: 1;
+            transform: scale(1.02) translateZ(0);
+        }
+        .picker-item.near {
+            opacity: 0.6;
+            transform: scale(0.96) translateZ(0);
+        }
+
+        /* Separador de mes */
+        .month-header {
+            padding: 1rem 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .month-header-label {
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(0, 255, 65, 0.7);
+            font-family: monospace;
+        }
+        .month-header-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(0,255,65,0.3) 0%, transparent 100%);
+        }
+        .month-header-count {
+            font-size: 10px;
+            color: rgba(0, 255, 65, 0.4);
+            font-family: monospace;
+        }
+
+        /* Indicador flotante de mes */
+        .month-indicator {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 15, 16, 0.95);
+            border: 1px solid rgba(0, 255, 65, 0.5);
+            padding: 0.5rem 1.5rem;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #00ff41;
+            font-family: monospace;
+            z-index: 20;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+        }
+
+        /* Card de evento */
+        .event-card {
+            background: linear-gradient(145deg, #1e1e20 0%, #111112 100%);
+            border: 1px solid rgba(0, 255, 65, 0.15);
+            border-radius: 4px;
+            padding: 0.875rem;
+            transition: all 0.25s ease-out;
+        }
+        .picker-item.active .event-card {
+            border-color: rgba(0, 255, 65, 0.6);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2),
+                        0 0 40px rgba(0, 255, 65, 0.1),
+                        inset 0 0 20px rgba(0, 255, 65, 0.03);
+            background: linear-gradient(145deg, #252527 0%, #151516 100%);
+        }
+        .picker-item.active .event-card h3 {
+            color: #00ff41;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
+        }
+        .event-card.urgent {
+            border-color: rgba(212, 17, 50, 0.4);
+        }
+        .event-card.birthday {
+            border-color: rgba(236, 72, 153, 0.4);
+        }
+        .event-card.holiday {
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+        .event-card.today {
+            border-color: rgba(0, 255, 65, 0.6);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.15);
+        }
+
+        /* Mes vacío */
+        .empty-month {
+            padding: 0.5rem 0;
+            font-size: 10px;
+            color: rgba(100, 100, 100, 0.5);
+            font-family: monospace;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="overflow-hidden fixed inset-0" style="overscroll-behavior: none; touch-action: none;">
+    <div class="relative flex h-full w-full flex-col overflow-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]" style="height: 100vh; height: 100dvh;">
+
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-10 scanlines"></div>
+
+        <!-- === HEADER === -->
+        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <div class="flex shrink-0 items-center gap-3">
+                <div class="relative">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
+                    </div>
+                    <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                    <div id="pending-badge" class="pending-badge hidden">0</div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
+                    <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                    <span id="status-text">NOMINAL</span>
+                </div>
+                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
+            </div>
+        </header>
+
+        <!-- === AUSPEX TICKER === -->
+        <div id="ticker-container" class="border-b border-[#332224] bg-[#0d0d0e] h-12 flex items-center overflow-hidden relative shadow-inner">
+            <div class="absolute left-0 top-0 bottom-0 bg-[#1a1112] flex items-center pl-4 pr-3 border-r border-[#332224] z-20">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-auspex-green text-sm animate-pulse">radar</span>
+                    <span class="text-auspex-green text-[10px] font-bold tracking-widest uppercase whitespace-nowrap crt-glow">AUSPEX</span>
+                </div>
+            </div>
+            <div class="flex-1 overflow-hidden h-full flex items-center">
+                <div id="ticker-content" class="animate-ticker flex items-center whitespace-nowrap pl-[100px]">
+                    <!-- Ticker items se insertan aquí -->
+                </div>
+            </div>
+        </div>
+
+        <!-- === TITLE === -->
+        <div class="p-5 pb-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-white tracking-tight text-2xl font-bold uppercase font-display crt-glow">Event Log</h2>
+                    <p id="year-subtitle" class="text-auspex-green/60 text-[10px] font-mono uppercase tracking-[0.15em] mt-1">/// Annual Timeline 2026 ///</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-today" onclick="scrollToToday()" class="flex items-center gap-1 bg-auspex-green/10 hover:bg-auspex-green/20 border border-auspex-green/30 px-3 py-1.5 rounded transition-colors" title="Ir al hoy">
+                        <span class="material-symbols-outlined text-auspex-green text-base">today</span>
+                        <span class="text-auspex-green text-[10px] font-bold font-mono tracking-wider">HOY</span>
+                    </button>
+                    <span class="material-symbols-outlined text-auspex-green/30 text-3xl">event_note</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- === LOADING STATE === -->
+        <div id="loading-state" class="flex-1 flex items-center justify-center py-20">
+            <div class="text-auspex-green font-mono text-sm animate-pulse crt-glow">/// SCANNING VOIDSPACE ///</div>
+        </div>
+
+        <!-- === ERROR STATE === -->
+        <div id="error-state" class="flex-1 flex-col items-center justify-center gap-4 p-4 py-20 hidden">
+            <p class="text-primary font-mono text-sm">/// AUSPEX ARRAY OFFLINE ///</p>
+            <button onclick="cargarEventos()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">
+                RETRY SCAN
+            </button>
+        </div>
+
+        <!-- === MAIN CONTENT === -->
+        <main id="main-content" class="hidden flex-1 flex-shrink-0" style="overflow: hidden; min-height: 300px;">
+            <!-- Picker Viewport (Slot Machine Style) -->
+            <div id="picker-viewport" class="picker-viewport" style="height: 100%; width: 100%;">
+                <!-- Ruler lateral con rayas -->
+                <div class="picker-ruler"></div>
+
+                <!-- Zona de selección central -->
+                <div class="picker-selection-zone"></div>
+
+                <!-- Fade gradients -->
+                <div class="picker-fade-top"></div>
+                <div class="picker-fade-bottom"></div>
+
+                <!-- Indicador de mes actual -->
+                <div id="month-indicator" class="month-indicator">ENERO 2026</div>
+
+                <!-- Track que se mueve (contiene los items) -->
+                <div id="picker-track" class="picker-track">
+                    <!-- Items se insertan aquí -->
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div id="empty-state" class="hidden text-center py-12">
+                <span class="material-symbols-outlined text-auspex-green/20 text-5xl mb-4">event_busy</span>
+                <p class="text-auspex-green/40 font-mono text-sm">/// NO EVENTS DETECTED ///</p>
+            </div>
+        </main>
+
+        <!-- === PWA INSTALL BANNER === -->
+        <div id="pwa-install-btn" class="hidden fixed top-20 left-4 right-4 max-w-md mx-auto z-50">
+            <div class="bg-[#1a1718] border border-secondary/50 p-3 shadow-lg flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-secondary text-2xl">download</span>
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm font-bold">Instalar App</span>
+                        <span class="text-gray-500 text-[10px] font-mono">ACCESO OFFLINE</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.WhVaultPWA.triggerInstall()" class="bg-secondary text-[#1a1718] px-3 py-1.5 text-xs font-bold uppercase tracking-wider hover:bg-secondary/80 transition-colors">
+                        Instalar
+                    </button>
+                    <button onclick="localStorage.setItem('pwa-install-dismissed','true');document.getElementById('pwa-install-btn').classList.add('hidden')" class="text-gray-500 hover:text-white p-1">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === FAB (Floating Action Button) === -->
+        <button onclick="openCreateEventoModal()" class="fab">
+            <span class="material-symbols-outlined text-3xl text-black">add</span>
+        </button>
+
+        <!-- === MODAL CREAR EVENTO === -->
+        <div id="modal-crear-evento" class="modal-overlay hidden" onclick="if(event.target===this)closeCreateEventoModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="text-auspex-green font-bold text-lg uppercase tracking-wide crt-glow">Nuevo Evento</h3>
+                    <button onclick="closeCreateEventoModal()" class="text-gray-500 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Título *</label>
+                        <input type="text" id="evento-titulo" class="form-input" placeholder="Nombre del evento">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Fecha *</label>
+                            <input type="date" id="evento-fecha" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fecha Fin</label>
+                            <input type="date" id="evento-fecha-fin" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Hora Inicio</label>
+                            <input type="time" id="evento-hora" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Hora Fin</label>
+                            <input type="time" id="evento-hora-fin" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Categoría</label>
+                            <select id="evento-categoria" class="form-select">
+                                <option value="">Seleccionar...</option>
+                                <option value="personal">Personal</option>
+                                <option value="social">Social</option>
+                                <option value="cultural">Cultural</option>
+                                <option value="medico">Médico</option>
+                                <option value="laboral">Laboral</option>
+                                <option value="familiar">Familiar</option>
+                                <option value="viaje">Viaje</option>
+                                <option value="celebracion">Celebración</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Subtipo</label>
+                            <select id="evento-subtipo" class="form-select">
+                                <option value="puntual">Puntual</option>
+                                <option value="vacaciones">Vacaciones</option>
+                                <option value="recurrente">Recurrente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Icono (emoji)</label>
+                        <input type="text" id="evento-icono" class="form-input" placeholder="📅" maxlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ubicación</label>
+                        <input type="text" id="evento-ubicacion" class="form-input" placeholder="Lugar del evento">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descripción</label>
+                        <textarea id="evento-descripcion" class="form-input" rows="3" placeholder="Detalles del evento..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeCreateEventoModal()" class="btn-secondary">Cancelar</button>
+                    <button onclick="crearEvento()" class="btn-primary">Crear Evento</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === BOTTOM NAVIGATION === -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+            <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+            </a>
+            <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-auspex-green hover:bg-[#1e1617] relative">
+                <span class="material-symbols-outlined text-2xl mb-0.5 crt-glow">radar</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase crt-glow">Auspex</span>
+                <div class="absolute top-0 w-full h-0.5 bg-auspex-green shadow-[0_0_8px_rgba(0,255,65,0.8)]"></div>
+            </a>
+            <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+            </a>
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+            </a>
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+            </a>
+            <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+            </a>
+            <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
+            </a>
+            <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+            </a>
+        </nav>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="sync-utils.js"></script>
+    <script src="auspex.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('SW registered:', registration.scope);
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                newWorker.postMessage('skipWaiting');
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.log('SW registration failed:', error);
+                });
+        }
+    </script>
+</body>
+</html>

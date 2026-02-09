@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>Duty - Daily Rituals</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "accent-cogitator": "#2efc84",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+    <style>
+        /* Material Symbols config */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f0f10;
+            color: #e5e7eb;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d41132; }
+
+        /* Selection */
+        ::selection { background-color: #d41132; color: white; }
+
+        /* Scanlines */
+        .scanlines {
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Hide scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Ritual card */
+        .ritual-card {
+            background: linear-gradient(145deg, #2a2021, #181112);
+            border: 1px solid rgba(197, 160, 89, 0.3);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 8px rgba(197,160,89,0.1);
+        }
+        .ritual-card.completed {
+            border-color: #2efc84;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 8px rgba(46,252,132,0.2);
+        }
+
+        /* Smooth transitions for mood bars */
+        .mood-bar {
+            touch-action: none;
+        }
+        .mood-bar > div {
+            transition: height 0.15s ease-out, opacity 0.15s ease-out;
+        }
+
+        /* Completion seal */
+        .completion-seal {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid #8C7853;
+            background-color: #2e1b1c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .completion-seal:hover {
+            border-color: #c5a065;
+            transform: scale(1.1);
+        }
+        .completion-seal.completed {
+            border-color: #2efc84;
+            background-color: #1a2f20;
+            box-shadow: inset 0 0 5px rgba(46,252,132,0.3), 0 0 8px rgba(46,252,132,0.4);
+        }
+        .completion-seal.completed .material-symbols-outlined {
+            color: #2efc84;
+            text-shadow: 0 0 5px rgba(46,252,132,0.7);
+        }
+
+        /* Pending sync badge */
+        .pending-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 14px;
+            height: 14px;
+            background: #f59e0b;
+            border-radius: 9999px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3px;
+            border: 2px solid #221618;
+            z-index: 10;
+        }
+        .pending-badge.hidden { display: none; }
+
+        /* Syncing animation */
+        @keyframes syncPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-dot-syncing {
+            animation: syncPulse 1s ease-in-out infinite;
+            background-color: #f59e0b !important;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #16a34a;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
+
+        <!-- === HEADER === -->
+        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <div class="flex shrink-0 items-center gap-3">
+                <div class="relative">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
+                    </div>
+                    <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                    <div id="pending-badge" class="pending-badge hidden">0</div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
+                    <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                    <span id="status-text">NOMINAL</span>
+                </div>
+                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
+            </div>
+        </header>
+
+        <!-- === TITLE === -->
+        <div class="p-5 pb-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-white tracking-tight text-2xl font-bold leading-tight uppercase font-display retro-glow">
+                    Duty <br><span class="text-primary">Daily Rituals</span>
+                </h2>
+                <span class="material-symbols-outlined text-primary text-3xl opacity-80">task_alt</span>
+            </div>
+            <p class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// HABIT TRACKING SYSTEM ///</p>
+        </div>
+
+        <!-- === CHRONOMETER (Week Days) === -->
+        <section class="py-3 border-b border-white/5 bg-gradient-to-b from-[#181112] to-[#1a1314]">
+            <!-- Week Navigation with Arrows -->
+            <div class="flex items-center justify-between px-2">
+                <!-- Arrow Left -->
+                <button onclick="navigateWeek(-1)" class="flex items-center justify-center w-8 h-16 text-gray-500 hover:text-primary transition-colors active:scale-95">
+                    <span class="material-symbols-outlined text-xl">chevron_left</span>
+                </button>
+
+                <!-- Week Days Container -->
+                <div id="week-container" class="flex-1 overflow-hidden">
+                    <div id="week-days" class="flex justify-center gap-1 transition-opacity duration-150">
+                        <!-- Days will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Arrow Right -->
+                <button onclick="navigateWeek(1)" class="flex items-center justify-center w-8 h-16 text-gray-500 hover:text-primary transition-colors active:scale-95">
+                    <span class="material-symbols-outlined text-xl">chevron_right</span>
+                </button>
+            </div>
+
+            <!-- Current Day Label + Today Button -->
+            <div class="flex items-center justify-center gap-3 mt-2 px-4">
+                <span id="current-day-header" class="text-xs font-mono text-gray-500 tracking-widest">CARGANDO...</span>
+                <button onclick="goToToday()" class="flex items-center gap-1 px-2 py-0.5 rounded border border-white/10 bg-surface-dark text-gray-500 hover:border-primary/50 hover:text-primary transition-all text-[10px] font-bold tracking-wider uppercase active:scale-95">
+                    <span class="material-symbols-outlined text-xs">today</span>
+                    HOY
+                </button>
+            </div>
+        </section>
+
+        <!-- === DAILY RITUALS === -->
+        <main class="flex-1 flex flex-col pb-24">
+            <section class="px-3 py-3 flex-none">
+
+                <!-- Priority Section (full-width, above columns) -->
+                <div class="priority-section flex flex-col bg-[#151011] rounded border border-[#d41132]/40 overflow-hidden shadow-lg mb-2" style="box-shadow: 0 0 15px rgba(212, 17, 50, 0.15), inset 0 0 10px rgba(212, 17, 50, 0.05);">
+                    <div class="px-3 py-2 flex items-center gap-2 border-b border-[#d41132]/20 bg-gradient-to-r from-[#1a0a0c] via-[#1e0c0f] to-[#1a0a0c]">
+                        <span class="material-symbols-outlined text-[#d41132] text-lg">priority_high</span>
+                        <h3 class="text-[9px] font-bold text-[#d41132] tracking-[0.2em] uppercase">Prioritaria</h3>
+                        <div class="flex-1"></div>
+                        <span class="text-[8px] font-mono text-[#d41132]/50 tracking-wider uppercase">Objetivo del Dia</span>
+                    </div>
+                    <div id="rituals-prioritaria" class="p-2 space-y-1">
+                        <!-- Priority rituals render here -->
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <!-- Matutina Column -->
+                    <div class="flex flex-col bg-[#151011] rounded border border-white/10 overflow-hidden shadow-lg">
+                        <div class="p-2 text-center border-b border-secondary/20 bg-gradient-to-b from-[#221013] to-[#181112]">
+                            <span class="material-symbols-outlined text-secondary text-lg">wb_twilight</span>
+                            <h3 class="text-[9px] font-bold text-gray-300 tracking-widest uppercase mt-1">Matutina</h3>
+                        </div>
+                        <div id="rituals-matutina" class="p-2 space-y-2 flex-1 hide-scrollbar overflow-y-auto max-h-[400px]">
+                            <!-- Morning rituals -->
+                        </div>
+                    </div>
+
+                    <!-- Tarde Column -->
+                    <div class="flex flex-col bg-[#151011] rounded border border-white/10 overflow-hidden shadow-lg">
+                        <div class="p-2 text-center border-b border-secondary/20 bg-gradient-to-b from-[#221013] to-[#181112]">
+                            <span class="material-symbols-outlined text-secondary text-lg">light_mode</span>
+                            <h3 class="text-[9px] font-bold text-gray-300 tracking-widest uppercase mt-1">Tarde</h3>
+                        </div>
+                        <div id="rituals-tarde" class="p-2 space-y-2 flex-1 hide-scrollbar overflow-y-auto max-h-[400px]">
+                            <!-- Afternoon rituals -->
+                        </div>
+                    </div>
+
+                    <!-- Noche Column -->
+                    <div class="flex flex-col bg-[#151011] rounded border border-white/10 overflow-hidden shadow-lg">
+                        <div class="p-2 text-center border-b border-secondary/20 bg-gradient-to-b from-[#221013] to-[#181112]">
+                            <span class="material-symbols-outlined text-secondary text-lg">nights_stay</span>
+                            <h3 class="text-[9px] font-bold text-gray-300 tracking-widest uppercase mt-1">Noche</h3>
+                        </div>
+                        <div id="rituals-noche" class="p-2 space-y-2 flex-1 hide-scrollbar overflow-y-auto max-h-[400px]">
+                            <!-- Night rituals -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Perfect Day Indicator -->
+                <div id="perfect-day-indicator" class="mt-3 hidden">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </section>
+
+            <!-- === MOOD ALLOCATOR === -->
+            <section class="px-4 py-6 bg-[#151011] relative overflow-hidden">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-white tracking-[0.1em] text-lg font-bold uppercase leading-none font-display">Mood Allocator</h2>
+                        <p class="text-[#b99da1] text-[10px] font-normal mt-1 uppercase tracking-widest">Commune with the Machine Spirit</p>
+                    </div>
+                    <div class="size-10 flex items-center justify-center rounded border border-secondary/20 bg-surface-dark/50 shadow-[0_0_15px_rgba(46,252,132,0.1)]">
+                        <span class="material-symbols-outlined text-accent-cogitator text-2xl animate-pulse">memory</span>
+                    </div>
+                </div>
+
+                <!-- Psy-Capacity Bar -->
+                <div class="mb-6 bg-surface-dark/80 p-3 rounded border border-white/10 shadow-lg">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Daily Psy-Capacity</span>
+                        <span id="psy-capacity" class="text-sm font-mono font-bold text-accent-cogitator drop-shadow-[0_0_5px_rgba(46,252,132,0.8)]">0% <span class="text-[10px] text-gray-500 font-normal opacity-70">USED</span></span>
+                    </div>
+                    <div class="relative h-5 w-full bg-black rounded-sm border border-white/10 overflow-hidden shadow-inner pointer-events-none select-none">
+                        <!-- Diagonal pattern overlay -->
+                        <div class="absolute inset-0 opacity-50 z-10" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNCIgaGVpZ2h0PSI0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik00IDBMMCA0IiBzdHJva2U9InJnYmEoMCwwLDAsMC41KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+')"></div>
+                        <!-- PSI Bar -->
+                        <div id="psy-bar" class="h-full bg-gradient-to-r from-green-900 via-accent-cogitator to-green-600 relative shadow-[0_0_15px_rgba(46,252,132,0.4)] transition-all duration-300" style="width: 0%">
+                            <!-- White marker at end -->
+                            <div class="absolute right-0 top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white]"></div>
+                        </div>
+                        <!-- Red dashed limit line at 100% -->
+                        <div class="absolute top-0 bottom-0 right-0 w-px border-l border-dashed border-red-500 z-20"></div>
+                    </div>
+                    <div class="mt-3 flex gap-0.5 h-2 w-full opacity-90 rounded overflow-hidden">
+                        <div id="imperium-bar" class="bg-gradient-to-b from-[#e5be6b] to-[#8C7853] transition-all duration-500" style="width: 50%"></div>
+                        <div id="chaos-bar" class="bg-gradient-to-b from-purple-500 to-purple-900 transition-all duration-500" style="width: 50%"></div>
+                    </div>
+                    <div class="flex justify-between mt-1.5 text-[9px] font-bold uppercase tracking-wider text-gray-500">
+                        <div class="flex items-center gap-1">
+                            <div class="size-2 rounded-full bg-secondary"></div>
+                            <span id="imperium-percent" class="text-secondary">Imperium 50%</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span id="chaos-percent" class="text-purple-400">Chaos 50%</span>
+                            <div class="size-2 rounded-full bg-purple-500"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mood Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Imperialis -->
+                    <div class="bg-gradient-to-b from-[#1a1608] to-[#0a0803] border border-[#C5A059]/30 rounded p-3 shadow-[0_4px_20px_rgba(197,160,89,0.15)] hover:border-[#C5A059]/60 transition-colors relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-tr from-[#C5A059]/5 via-transparent to-white/5 pointer-events-none mix-blend-overlay"></div>
+                        <div class="flex items-center gap-1.5 mb-3 pb-2 border-b border-[#C5A059]/20 relative z-10">
+                            <span class="material-symbols-outlined text-[#C5A059] text-sm drop-shadow-[0_0_6px_rgba(197,160,89,0.6)]">stars</span>
+                            <span class="text-[10px] text-[#C5A059] font-bold tracking-widest uppercase">Imperialis</span>
+                        </div>
+                        <div id="imperialis-moods" class="flex justify-between items-end h-32 gap-1.5 pb-1 relative z-10">
+                            <!-- Imperium moods -->
+                        </div>
+                    </div>
+
+                    <!-- The Warp -->
+                    <div class="bg-[#11051a]/90 border border-purple-500/40 rounded p-3 shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:border-purple-400/60 transition-colors relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(168,85,247,0.15),transparent_70%)] pointer-events-none"></div>
+                        <div class="absolute -right-6 -top-6 size-24 bg-purple-600/30 blur-xl rounded-full pointer-events-none mix-blend-screen animate-pulse"></div>
+                        <div class="absolute -left-6 bottom-0 size-32 bg-fuchsia-900/20 blur-2xl rounded-full pointer-events-none mix-blend-color-dodge"></div>
+                        <div class="flex items-center gap-1.5 mb-3 pb-2 border-b border-purple-500/30 relative z-10">
+                            <span class="material-symbols-outlined text-purple-400 text-sm drop-shadow-[0_0_8px_rgba(192,132,252,0.8)] animate-pulse">dangerous</span>
+                            <span class="text-[10px] text-purple-400 font-bold tracking-widest uppercase drop-shadow-[0_0_5px_rgba(168,85,247,0.8)]">The Warp</span>
+                        </div>
+                        <div id="warp-moods" class="flex justify-between items-end h-32 gap-1.5 pb-1 relative z-10">
+                            <!-- Chaos moods -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- === PWA INSTALL BANNER === -->
+        <div id="pwa-install-btn" class="hidden fixed top-20 left-4 right-4 max-w-md mx-auto z-50">
+            <div class="bg-[#1a1718] border border-secondary/50 p-3 shadow-lg flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-secondary text-2xl">download</span>
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm font-bold">Instalar App</span>
+                        <span class="text-gray-500 text-[10px] font-mono">ACCESO OFFLINE</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.WhVaultPWA.triggerInstall()" class="bg-secondary text-[#1a1718] px-3 py-1.5 text-xs font-bold uppercase tracking-wider hover:bg-secondary/80 transition-colors">
+                        Instalar
+                    </button>
+                    <button onclick="localStorage.setItem('pwa-install-dismissed','true');document.getElementById('pwa-install-btn').classList.add('hidden')" class="text-gray-500 hover:text-white p-1">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === BOTTOM NAVIGATION === -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+            <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+            </a>
+            <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">radar</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Auspex</span>
+            </a>
+            <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
+                <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
+            </a>
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+            </a>
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+            </a>
+            <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+            </a>
+            <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
+            </a>
+            <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+            </a>
+        </nav>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="sync-utils.js"></script>
+    <script src="duty.js"></script>
+<!-- Service Worker Registration -->
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                console.log('SW registered:', registration.scope);
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage('skipWaiting');
+                        }
+                    });
+                });
+            })
+            .catch((error) => {
+                console.log('SW registration failed:', error);
+            });
+    }
+</script>
+</body>
+</html>

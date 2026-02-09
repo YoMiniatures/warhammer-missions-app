@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>Directivas - Rogue Trader</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                        "grim-red": "#990000",
+                        "sickly-green": "#0F520F",
+                        "sickly-green-light": "#1A821A",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+    <style>
+        /* Material Symbols config */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f0f10;
+            color: #e5e7eb;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d41132; }
+
+        /* Selection */
+        ::selection { background-color: #d41132; color: white; }
+
+        /* Scanlines */
+        .scanlines {
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Retro glow */
+        .retro-glow { text-shadow: 0 0 2px rgba(212, 17, 50, 0.5); }
+        .green-glow { text-shadow: 0 0 2px rgba(15, 82, 15, 0.5); }
+
+        /* Hide scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Priority cards */
+        .priority-card-high {
+            transform: scale(1.02);
+            border-width: 2px;
+            border-color: #d41132;
+            box-shadow: 0 0 15px rgba(212, 17, 50, 0.4);
+        }
+        .priority-card-medium {
+            transform: scale(1.01);
+            border-width: 1.5px;
+            border-color: #990000;
+            box-shadow: 0 0 10px rgba(153, 0, 0, 0.3);
+        }
+        .priority-card-low {
+            transform: scale(0.98);
+            opacity: 0.85;
+        }
+        .priority-card-completed {
+            border-color: rgba(15, 82, 15, 0.4);
+        }
+
+        /* Pending sync badge */
+        .pending-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 14px;
+            height: 14px;
+            background: #f59e0b;
+            border-radius: 9999px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3px;
+            border: 2px solid #221618;
+            z-index: 10;
+        }
+        .pending-badge.hidden { display: none; }
+
+        /* Syncing animation */
+        @keyframes syncPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-dot-syncing {
+            animation: syncPulse 1s ease-in-out infinite;
+            background-color: #f59e0b !important;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #16a34a;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
+
+        <!-- === HEADER === -->
+        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <div class="flex shrink-0 items-center gap-3">
+                <div class="relative">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
+                    </div>
+                    <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                    <div id="pending-badge" class="pending-badge hidden">0</div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
+                    <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                    <span id="status-text">NOMINAL</span>
+                </div>
+                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">+++ --- +++</div>
+            </div>
+        </header>
+
+        <!-- === TITLE === -->
+        <div class="p-5 pb-2">
+            <div class="flex items-center justify-between">
+                <h2 class="text-white tracking-tight text-2xl font-bold leading-tight uppercase font-display retro-glow">
+                    Directivas <br><span class="text-primary">Del Sistema</span>
+                </h2>
+                <span class="material-symbols-outlined text-primary text-3xl opacity-80">target</span>
+            </div>
+            <p class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// ANNUAL PROGRESS TRACKING ///</p>
+        </div>
+
+        <!-- === LOADING STATE === -->
+        <div id="loading-state" class="flex-1 flex items-center justify-center py-20">
+            <div class="text-secondary font-mono text-sm animate-pulse">/// LOADING DIRECTIVES ///</div>
+        </div>
+
+        <!-- === ERROR STATE === -->
+        <div id="error-state" class="flex-1 flex-col items-center justify-center gap-4 p-4 py-20 hidden">
+            <p class="text-primary font-mono text-sm">/// CONNECTION ERROR ///</p>
+            <button onclick="cargarDirectivas()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">
+                RETRY
+            </button>
+        </div>
+
+        <!-- === MAIN CONTENT === -->
+        <div id="main-content" class="hidden flex-1 overflow-y-auto pb-24">
+            <div id="directivas-list" class="px-4 space-y-4 mt-2">
+                <!-- Directivas se insertan aquí -->
+            </div>
+
+            <!-- Botón Nueva Directiva -->
+            <div class="px-4 mt-4">
+                <button class="w-full py-3 bg-[#1e1617] border border-secondary/30 text-secondary text-xs font-bold uppercase tracking-widest hover:bg-[#261e1f] hover:border-secondary transition-all flex items-center justify-center gap-2 group">
+                    <span class="material-symbols-outlined text-base group-hover:rotate-90 transition-transform">add</span>
+                    New Directive
+                </button>
+            </div>
+        </div>
+
+        <!-- === PWA INSTALL BANNER === -->
+        <div id="pwa-install-btn" class="hidden fixed top-20 left-4 right-4 max-w-md mx-auto z-50">
+            <div class="bg-[#1a1718] border border-secondary/50 p-3 shadow-lg flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-secondary text-2xl">download</span>
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm font-bold">Instalar App</span>
+                        <span class="text-gray-500 text-[10px] font-mono">ACCESO OFFLINE</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.WhVaultPWA.triggerInstall()" class="bg-secondary text-[#1a1718] px-3 py-1.5 text-xs font-bold uppercase tracking-wider hover:bg-secondary/80 transition-colors">
+                        Instalar
+                    </button>
+                    <button onclick="localStorage.setItem('pwa-install-dismissed','true');document.getElementById('pwa-install-btn').classList.add('hidden')" class="text-gray-500 hover:text-white p-1">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === FAB === -->
+        <div class="fixed bottom-20 right-6 z-50">
+            <button class="flex items-center justify-center size-12 rounded-full bg-[#1e1617] text-secondary shadow-[0_0_15px_rgba(197,160,101,0.2)] border border-secondary/50 active:scale-95 transition-all group hover:bg-secondary hover:text-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">edit_document</span>
+            </button>
+        </div>
+
+        <!-- === BOTTOM NAVIGATION === -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+            <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+            </a>
+            <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">radar</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Auspex</span>
+            </a>
+            <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+            </a>
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+            </a>
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
+                <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
+            </a>
+            <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+            </a>
+            <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
+            </a>
+            <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+            </a>
+        </nav>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="sync-utils.js"></script>
+    <script src="directivas.js"></script>
+<!-- Service Worker Registration -->
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                console.log('SW registered:', registration.scope);
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage('skipWaiting');
+                        }
+                    });
+                });
+            })
+            .catch((error) => {
+                console.log('SW registration failed:', error);
+            });
+    }
+</script>
+</body>
+</html>

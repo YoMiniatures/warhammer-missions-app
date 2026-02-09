@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html class="dark" lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Notas Sagradas - Warhammer Vault</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                        "data-green": "#22c55e",
+                        "parchment": "#d9c5a3",
+                        "parchment-dark": "#1a1814",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                        "handwritten": ["Cormorant Garamond", "serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                },
+            },
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <style type="text/tailwindcss">
+        body { font-family: "Space Grotesk", sans-serif; }
+        .scanlines {
+            background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.15) 50%), linear-gradient(90deg, rgba(255,0,0,0.03), rgba(0,255,0,0.01), rgba(0,0,255,0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+        .retro-glow { text-shadow: 0 0 5px rgba(212, 17, 50, 0.5); }
+        .data-glow { text-shadow: 0 0 8px rgba(34, 197, 94, 0.8); }
+        .gold-glow { text-shadow: 0 0 8px rgba(197, 160, 101, 0.6); }
+        .green-button-glow { box-shadow: 0 0 20px rgba(34,197,94,0.4), inset 0 0 10px rgba(34,197,94,0.2); }
+        .parchment-texture {
+            background-color: #d9c5a3;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.1), 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        .metallic-slate {
+            background: linear-gradient(145deg, #261e1f, #1a1718);
+            border: 1px solid #3d2f31;
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
+        }
+        .parchment-slate {
+            background-color: #1a1814;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+            background-blend-mode: multiply;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+        .gothic-border {
+            border-image: linear-gradient(to right, transparent, #c5a065, transparent) 1;
+            border-bottom: 1px solid;
+        }
+        .key-gradient { background: linear-gradient(180deg, #2a2627 0%, #161011 100%); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; }
+        .modal-backdrop { background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-background-dark text-gray-200 antialiased selection:bg-primary selection:text-white">
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-background-dark max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-10 scanlines h-full w-full sticky top-0"></div>
+
+        <!-- ============================================ -->
+        <!-- === VISTA LISTA === -->
+        <!-- ============================================ -->
+        <div id="vista-lista">
+            <!-- Header -->
+            <div class="flex items-center bg-[#221618] border-b-2 border-primary/40 p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+                <div class="flex shrink-0 items-center gap-3">
+                    <div class="relative">
+                        <div class="size-10 bg-surface-accent rounded-sm border border-secondary/50 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-secondary text-xl">auto_stories</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Cuaderno de Bitácora</span>
+                        <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end">
+                    <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                        <span class="material-symbols-outlined text-[10px]">history_edu</span>
+                        <span>LOGBOOK ACTIVE</span>
+                    </div>
+                    <div id="fecha-imperial" class="text-gray-400 font-mono text-xs"></div>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <div class="relative p-5 pb-2">
+                <div class="absolute top-0 left-0 w-1 h-full bg-primary/20"></div>
+                <h2 class="text-white tracking-tight text-3xl font-bold leading-tight uppercase font-display retro-glow">
+                    Notas <br><span class="text-primary">Sagradas</span>
+                </h2>
+                <p class="text-gray-500 text-[10px] mt-2 font-mono uppercase tracking-widest">/// LIBER NOTITIA: PRIVATE ARCHIVES ///</p>
+            </div>
+
+            <!-- Count bar -->
+            <div id="count-bar" class="hidden px-5 py-2">
+                <div class="flex items-center gap-2 text-[10px] font-mono text-secondary/60 uppercase tracking-widest">
+                    <span class="material-symbols-outlined text-xs">database</span>
+                    <span><span id="notas-count">0</span> data-scrolls inscribed</span>
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div id="empty-state" class="hidden px-5 pt-16 text-center">
+                <span class="material-symbols-outlined text-6xl text-gray-700 mb-4 block">menu_book</span>
+                <p class="text-gray-500 font-display text-lg uppercase tracking-wider">El cogitador está vacío</p>
+                <p class="text-gray-600 text-xs mt-2 font-mono">Inscribe tu primera nota sagrada, Lord Capitán</p>
+            </div>
+
+            <!-- Notes list -->
+            <div id="notas-list" class="flex-1 px-4 pt-4 pb-48 space-y-4">
+            </div>
+
+            <!-- Offload to Obsidian -->
+            <div id="offload-section" class="hidden fixed bottom-16 left-0 right-0 max-w-md mx-auto px-4 pb-4 bg-gradient-to-t from-background-dark via-background-dark/90 to-transparent z-30">
+                <button id="btn-offload" onclick="offloadNotas()" class="w-full h-14 bg-gradient-to-r from-primary-dark to-primary flex items-center justify-center gap-3 rounded-sm border-2 border-primary/40 shadow-[0_0_20px_rgba(212,17,50,0.4)] active:scale-95 transition-all group overflow-hidden relative">
+                    <div class="absolute inset-0 scanlines opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                    <span class="material-symbols-outlined text-white text-2xl group-hover:rotate-12 transition-transform">auto_stories</span>
+                    <span class="text-white font-display font-bold tracking-[0.2em] text-sm uppercase">Bless with Imperial Seal</span>
+                </button>
+                <p class="text-center text-[8px] font-mono text-gray-600 mt-1 uppercase tracking-widest">Offload scrolls to Obsidian cogitator</p>
+            </div>
+
+            <!-- FAB Button -->
+            <div class="fixed bottom-36 right-6 z-50 flex flex-col items-center">
+                <button onclick="abrirEditor()" class="relative group">
+                    <div class="absolute -inset-3 bg-data-green/30 rounded-full blur-xl group-hover:bg-data-green/50 transition-colors"></div>
+                    <div class="relative size-16 bg-[#1a1718] border-2 border-data-green/60 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.3)] active:scale-95 transition-transform green-button-glow overflow-hidden">
+                        <div class="absolute inset-0 scanlines opacity-40 pointer-events-none"></div>
+                        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:8px_8px]"></div>
+                        <span class="material-symbols-outlined text-4xl text-data-green font-bold data-glow relative z-10">draw</span>
+                    </div>
+                    <div class="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 border border-data-green/40 px-3 py-1 rounded text-[9px] font-bold tracking-[0.2em] text-data-green uppercase pointer-events-none shadow-lg">
+                        Inscribe New Note
+                    </div>
+                </button>
+            </div>
+
+            <!-- Bottom Nav -->
+            <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+                <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+                </a>
+                <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">radar</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Auspex</span>
+                </a>
+                <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+                </a>
+                <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+                </a>
+                <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+                </a>
+                <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+                </a>
+                <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-secondary hover:bg-[#1e1617] relative">
+                    <span class="material-symbols-outlined text-2xl mb-0.5 gold-glow">auto_stories</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase gold-glow">Notas</span>
+                    <div class="absolute top-0 w-full h-0.5 bg-secondary shadow-[0_0_8px_rgba(197,160,101,0.8)]"></div>
+                </a>
+                <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- === VISTA EDITOR === -->
+        <!-- ============================================ -->
+        <div id="vista-editor" class="hidden fixed inset-0 z-[60] bg-background-dark max-w-md mx-auto flex flex-col">
+            <!-- Editor Header -->
+            <div class="relative z-20 px-4 pt-6 pb-2 bg-[#0f0f10]">
+                <div class="flex items-center justify-between mb-1">
+                    <button onclick="cerrarEditor()" class="flex items-center gap-1 text-primary text-[10px] font-mono uppercase tracking-widest hover:text-white transition-colors">
+                        <span class="material-symbols-outlined text-sm">arrow_back</span>
+                        <span>Return to Archives</span>
+                    </button>
+                    <div class="flex gap-2">
+                        <span class="material-symbols-outlined text-secondary text-xs">skull</span>
+                        <span class="material-symbols-outlined text-secondary text-xs">skull</span>
+                    </div>
+                </div>
+                <div class="relative group">
+                    <div class="absolute -left-2 top-1/2 -translate-y-1/2">
+                        <span class="material-symbols-outlined text-secondary text-lg">shield</span>
+                    </div>
+                    <input id="editor-title" class="w-full bg-transparent border-y border-secondary/30 py-2 px-6 text-secondary font-display font-bold text-lg tracking-wider focus:outline-none focus:border-secondary transition-colors uppercase placeholder:text-secondary/30" type="text" placeholder="ENTER SACRED DESIGNATION...">
+                    <div class="absolute -right-2 top-1/2 -translate-y-1/2">
+                        <span class="material-symbols-outlined text-secondary text-lg">shield</span>
+                    </div>
+                </div>
+                <div class="flex justify-center -mt-1.5">
+                    <div class="bg-background-dark px-2">
+                        <span class="material-symbols-outlined text-primary text-[10px]">stat_3</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor Body -->
+            <div class="relative flex-1 parchment-slate overflow-hidden">
+                <div class="absolute inset-0 scanlines z-10 opacity-40"></div>
+                <div class="relative z-20 p-6 h-full">
+                    <textarea id="editor-content" class="w-full h-full bg-transparent border-none focus:ring-0 font-mono text-data-green text-sm leading-relaxed resize-none data-glow placeholder:text-data-green/20" placeholder="Commence data-inscription here, scribe..."></textarea>
+                </div>
+                <!-- Seal & Archive FAB -->
+                <div class="absolute bottom-6 right-6 z-30">
+                    <button onclick="guardarNota()" class="flex flex-col items-center gap-1 group">
+                        <div class="size-14 bg-primary rounded-full flex items-center justify-center shadow-[0_0_25px_rgba(212,17,50,0.6)] border-2 border-white/20 active:scale-95 transition-all">
+                            <span class="material-symbols-outlined text-white text-3xl">verified</span>
+                        </div>
+                        <span class="text-[8px] font-bold text-white uppercase tracking-tighter bg-primary px-1">Seal &amp; Archive</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Toolbar -->
+            <div class="bg-[#1a1718] border-t border-secondary/20 px-2 py-1.5 flex items-center justify-between z-30">
+                <button onclick="toggleTipo()" id="btn-tipo" class="flex items-center gap-1 px-2 py-1 hover:bg-white/5 rounded transition-colors group">
+                    <span class="material-symbols-outlined text-parchment text-lg group-hover:scale-110 transition-transform">description</span>
+                    <span id="tipo-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">Parchment</span>
+                </button>
+                <div class="h-4 w-px bg-white/10"></div>
+                <button onclick="eliminarNotaActual()" class="flex items-center gap-1 px-2 py-1 hover:bg-white/5 rounded transition-colors group">
+                    <span class="material-symbols-outlined text-primary text-lg group-hover:scale-110 transition-transform">delete_forever</span>
+                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">Purge</span>
+                </button>
+                <div class="h-4 w-px bg-white/10"></div>
+                <div class="flex items-center gap-1 px-2 py-1">
+                    <span class="w-1.5 h-1.5 bg-data-green rounded-full animate-pulse"></span>
+                    <span class="text-[8px] font-mono text-data-green/70 uppercase">Cogitator Link Active</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- === TOAST === -->
+        <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[200] hidden">
+            <div class="px-4 py-2 rounded bg-[#1a1718] border border-secondary/30 shadow-lg text-sm font-display flex items-center gap-2">
+                <span id="toast-icon" class="material-symbols-outlined text-lg"></span>
+                <span id="toast-text"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="notas.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('[Notas] SW registered:', registration.scope);
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                newWorker.postMessage('skipWaiting');
+                            }
+                        });
+                    });
+                })
+                .catch((error) => console.log('[Notas] SW registration failed:', error));
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('[Notas] New SW active');
+            });
+        }
+    </script>
+</body>
+</html>

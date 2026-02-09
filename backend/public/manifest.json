@@ -1,0 +1,41 @@
+{
+  "name": "Warhammer Vault - Rogue Trader",
+  "short_name": "WH Vault",
+  "description": "Command your missions, track your crusades, serve the Emperor",
+  "id": "/",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f0f10",
+  "theme_color": "#d41132",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "lifestyle"],
+  "lang": "es",
+  "dir": "ltr"
+}

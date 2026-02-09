@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1112"/>
+      <stop offset="100%" style="stop-color:#0f0f10"/>
+    </linearGradient>
+    <linearGradient id="eagle" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d41132"/>
+      <stop offset="100%" style="stop-color:#8a0b20"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- Border -->
+  <rect x="8" y="8" width="496" height="496" fill="none" stroke="#d41132" stroke-width="4" opacity="0.6"/>
+  <!-- Corner decorations -->
+  <path d="M8,8 L48,8 L48,16 L16,16 L16,48 L8,48 Z" fill="#d41132"/>
+  <path d="M504,8 L464,8 L464,16 L496,16 L496,48 L504,48 Z" fill="#d41132"/>
+  <path d="M8,504 L48,504 L48,496 L16,496 L16,464 L8,464 Z" fill="#d41132"/>
+  <path d="M504,504 L464,504 L464,496 L496,496 L496,464 L504,464 Z" fill="#d41132"/>
+  <!-- Aquila simplified -->
+  <g transform="translate(256, 280) scale(0.5)" fill="url(#eagle)">
+    <path d="M0,-180 L-30,-120 L-150,-140 L-100,-80 L-180,-60 L-120,-20 L-160,40 L-80,20 L-100,100 L-40,60 L-20,140 L0,80 L20,140 L40,60 L100,100 L80,20 L160,40 L120,-20 L180,-60 L100,-80 L150,-140 L30,-120 Z" opacity="0.9"/>
+  </g>
+  <!-- Center skull -->
+  <circle cx="256" cy="260" r="35" fill="#0f0f10" stroke="#d41132" stroke-width="3"/>
+  <circle cx="244" cy="252" r="8" fill="#d41132"/>
+  <circle cx="268" cy="252" r="8" fill="#d41132"/>
+  <path d="M248,272 L256,280 L264,272" stroke="#d41132" stroke-width="3" fill="none"/>
+  <!-- Text WH -->
+  <text x="256" y="420" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="72" font-weight="bold" fill="#c5a065">WH</text>
+  <text x="256" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#666">VAULT</text>
+</svg>

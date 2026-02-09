@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>⚔️ Rogue Trader Dashboard</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+    <style>
+        /* Material Symbols config */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f0f10;
+            color: #e5e7eb;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d41132; }
+
+        /* Selection */
+        ::selection { background-color: #d41132; color: white; }
+
+        /* Animations */
+        @keyframes ticker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .animate-ticker {
+            animation: ticker 60s linear infinite;
+            width: max-content;
+        }
+        .animate-ticker:hover { animation-play-state: paused; }
+
+        /* Scanlines */
+        .scanlines {
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Retro glow */
+        .retro-glow { text-shadow: 0 0 2px rgba(212, 17, 50, 0.5); }
+
+        /* Hide scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Checkbox custom */
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #543b3f;
+            border-radius: 2px;
+            background: #181112;
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+        }
+        input[type="checkbox"]:checked {
+            background: #d41132;
+            border-color: #d41132;
+        }
+        input[type="checkbox"]:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 14px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        input[type="checkbox"].urgent { border-color: rgba(212,17,50,0.6); }
+
+        /* Pending sync badge */
+        .pending-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 14px;
+            height: 14px;
+            background: #f59e0b;
+            border-radius: 9999px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3px;
+            border: 2px solid #221618;
+            z-index: 10;
+        }
+        .pending-badge.hidden { display: none; }
+
+        /* Syncing animation */
+        @keyframes syncPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-dot-syncing {
+            animation: syncPulse 1s ease-in-out infinite;
+            background-color: #f59e0b !important;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #16a34a;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        .toast-error {
+            background: #d41132;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* FAB */
+        .fab {
+            position: fixed;
+            bottom: 80px;
+            right: 1rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #d41132 0%, #8a0b20 100%);
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 20px rgba(212, 17, 50, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 60;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .fab:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 25px rgba(212, 17, 50, 0.6);
+        }
+        .fab:active { transform: scale(0.95); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-content {
+            background: linear-gradient(145deg, #1e1e20 0%, #111112 100%);
+            border: 1px solid #332224;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            padding: 1rem;
+            border-bottom: 1px solid #332224;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body { padding: 1rem; }
+        .modal-footer {
+            padding: 1rem;
+            border-top: 1px solid #332224;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .form-group { margin-bottom: 1rem; }
+        .form-label {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #c5a065;
+            margin-bottom: 0.5rem;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.625rem;
+            background: #181112;
+            border: 1px solid #332224;
+            border-radius: 2px;
+            color: white;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #d41132;
+        }
+        .form-select {
+            width: 100%;
+            padding: 0.625rem;
+            background: #181112;
+            border: 1px solid #332224;
+            border-radius: 2px;
+            color: white;
+            font-size: 14px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .btn-primary {
+            background: linear-gradient(145deg, #d41132 0%, #8a0b20 100%);
+            color: white;
+            border: none;
+            padding: 0.625rem 1.25rem;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        .btn-secondary {
+            background: #332224;
+            color: #888;
+            border: 1px solid #443234;
+            padding: 0.625rem 1.25rem;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
+
+        <!-- === HEADER === -->
+        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <div class="flex shrink-0 items-center gap-3">
+                <div class="relative">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
+                    </div>
+                    <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                    <div id="pending-badge" class="pending-badge hidden">0</div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
+                    <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                    <span id="status-text">NOMINAL</span>
+                </div>
+                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
+            </div>
+        </header>
+
+        <!-- === TÍTULO PRINCIPAL === -->
+        <div class="p-5 pb-2">
+            <h2 class="text-white tracking-tight text-2xl font-bold leading-tight uppercase font-display retro-glow">
+                Bridge <br><span class="text-primary">Command Center</span>
+            </h2>
+            <p class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// DAILY BRIEFING INITIALIZED ///</p>
+        </div>
+
+        <!-- === AUSPEX TICKER === -->
+        <div id="ticker-container" class="mt-4 border-y border-[#332224] bg-[#161011] h-14 flex items-center overflow-hidden relative shadow-lg hidden">
+            <a href="auspex.html" class="absolute left-0 top-0 bottom-0 bg-[#221618] flex items-center pl-4 pr-3 border-r border-[#332224] z-20 shadow-[4px_0_10px_rgba(0,0,0,0.5)] hover:bg-[#2a1e20] transition-colors">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-sm animate-pulse">radar</span>
+                    <div class="flex flex-col">
+                        <span class="text-secondary text-[10px] font-bold tracking-widest uppercase whitespace-nowrap leading-none">AUSPEX</span>
+                        <span class="text-gray-500 text-[8px] font-mono leading-none mt-0.5">FEED: LIVE</span>
+                    </div>
+                </div>
+            </a>
+            <div class="flex-1 overflow-hidden h-full flex items-center bg-[#0f0f10] relative">
+                <div class="absolute left-0 w-24 h-full bg-gradient-to-r from-[#161011] to-transparent z-10 pl-24 pointer-events-none"></div>
+                <div id="ticker-content" class="animate-ticker flex items-center whitespace-nowrap pl-[120px]">
+                    <!-- Ticker items se insertan aquí -->
+                </div>
+            </div>
+        </div>
+
+        <!-- === LOADING STATE === -->
+        <div id="loading-state" class="flex-1 flex items-center justify-center py-20">
+            <div class="text-secondary font-mono text-sm animate-pulse">/// LOADING DATA ///</div>
+        </div>
+
+        <!-- === ERROR STATE === -->
+        <div id="error-state" class="flex-1 flex-col items-center justify-center gap-4 p-4 py-20 hidden">
+            <p class="text-primary font-mono text-sm">/// CONNECTION ERROR ///</p>
+            <button onclick="cargarDatos()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">
+                RETRY
+            </button>
+        </div>
+
+        <!-- === CONTENIDO PRINCIPAL === -->
+        <div id="main-content" class="hidden">
+
+            <!-- === MISIONES DEL DÍA === -->
+            <div class="mt-4">
+                <div class="flex items-center justify-between px-4 pb-2 pt-4 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">warning</span>
+                        <h3 class="text-secondary text-sm font-bold leading-tight tracking-widest uppercase">/// MISIONES DEL DÍA ///</h3>
+                    </div>
+                    <span id="urgentes-count" class="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30">0</span>
+                </div>
+                <div id="misiones-urgentes" class="px-4 pt-2 space-y-1">
+                    <!-- Misiones urgentes se insertan aquí -->
+                </div>
+            </div>
+
+            <!-- === CRITERIOS DE VICTORIA === -->
+            <div class="mt-4">
+                <div class="flex items-center justify-between px-4 pb-2 pt-2 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-secondary text-sm">military_tech</span>
+                        <h3 class="text-secondary text-xs font-bold leading-tight tracking-widest uppercase">/// CRITERIOS DE VICTORIA ///</h3>
+                    </div>
+                    <span id="criterios-porcentaje" class="text-[9px] font-mono text-gray-500">0%</span>
+                </div>
+                <div id="criterios-victoria" class="flex overflow-x-auto gap-3 px-4 py-3 pb-4 snap-x snap-mandatory hide-scrollbar">
+                    <!-- Criterios se insertan aquí -->
+                </div>
+            </div>
+
+            <!-- === MISIONES OPCIONALES === -->
+            <div class="mt-2 mb-24">
+                <div class="flex items-center justify-between px-4 pb-2 pt-4 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-gray-500">article</span>
+                        <h3 class="text-gray-400 text-sm font-bold leading-tight tracking-widest uppercase">/// OPTIONAL DIRECTIVES ///</h3>
+                    </div>
+                </div>
+                <div id="misiones-opcionales" class="px-4 pt-2 space-y-1">
+                    <!-- Misiones opcionales se insertan aquí -->
+                </div>
+            </div>
+        </div>
+
+        <!-- === PWA INSTALL BANNER === -->
+        <div id="pwa-install-btn" class="hidden fixed top-20 left-4 right-4 max-w-md mx-auto z-50">
+            <div class="bg-[#1a1718] border border-secondary/50 p-3 shadow-lg flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-secondary text-2xl">download</span>
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm font-bold">Instalar App</span>
+                        <span class="text-gray-500 text-[10px] font-mono">ACCESO OFFLINE</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.WhVaultPWA.triggerInstall()" class="bg-secondary text-[#1a1718] px-3 py-1.5 text-xs font-bold uppercase tracking-wider hover:bg-secondary/80 transition-colors">
+                        Instalar
+                    </button>
+                    <button onclick="localStorage.setItem('pwa-install-dismissed','true');document.getElementById('pwa-install-btn').classList.add('hidden')" class="text-gray-500 hover:text-white p-1">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === FAB (Floating Action Button) === -->
+        <button onclick="openCreateMisionModal()" class="fab">
+            <span class="material-symbols-outlined text-3xl text-white">add</span>
+        </button>
+
+        <!-- === MODAL CREAR MISIÓN === -->
+        <div id="modal-crear-mision" class="modal-overlay hidden" onclick="if(event.target===this)closeCreateMisionModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="text-white font-bold text-lg uppercase tracking-wide">Nueva Misión</h3>
+                    <button onclick="closeCreateMisionModal()" class="text-gray-500 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Título *</label>
+                        <input type="text" id="mision-titulo" class="form-input" placeholder="Nombre de la misión">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Categoría</label>
+                            <select id="mision-categoria" class="form-select">
+                                <option value="">Seleccionar...</option>
+                                <option value="desarrollo">Desarrollo</option>
+                                <option value="diseño">Diseño</option>
+                                <option value="aprendizaje">Aprendizaje</option>
+                                <option value="familia">Familia</option>
+                                <option value="salud">Salud</option>
+                                <option value="hogar">Hogar</option>
+                                <option value="financiera">Financiera</option>
+                                <option value="ocio">Ocio</option>
+                                <option value="reunion">Reunión</option>
+                                <option value="critica">Crítica</option>
+                                <option value="importante">Importante</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Prioridad</label>
+                            <select id="mision-prioridad" class="form-select">
+                                <option value="">Seleccionar...</option>
+                                <option value="alta">Alta</option>
+                                <option value="media">Media</option>
+                                <option value="baja">Baja</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Deadline</label>
+                            <input type="date" id="mision-deadline" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Puntos XP</label>
+                            <input type="number" id="mision-xp" class="form-input" placeholder="100" value="100">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Dificultad</label>
+                            <select id="mision-dificultad" class="form-select">
+                                <option value="">Seleccionar...</option>
+                                <option value="facil">Fácil</option>
+                                <option value="media">Media</option>
+                                <option value="dificil">Difícil</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tiempo Est.</label>
+                            <input type="text" id="mision-tiempo" class="form-input" placeholder="2h">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label flex items-center gap-2">
+                            <input type="checkbox" id="mision-criterio" class="!w-4 !h-4">
+                            <span>Criterio de Victoria</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descripción</label>
+                        <textarea id="mision-descripcion" class="form-input" rows="3" placeholder="Detalles de la misión..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeCreateMisionModal()" class="btn-secondary">Cancelar</button>
+                    <button onclick="crearMision()" class="btn-primary">Crear Misión</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === BOTTOM NAVIGATION === -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+            <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
+                <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
+            </a>
+            <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">radar</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Auspex</span>
+            </a>
+            <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+            </a>
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+            </a>
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+            </a>
+            <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+            </a>
+            <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
+            </a>
+            <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+            </a>
+        </nav>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="sync-utils.js"></script>
+    <script src="app.js"></script>
+<!-- Service Worker Registration -->
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                console.log('SW registered:', registration.scope);
+                // Check for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // New SW ready, activate it
+                            newWorker.postMessage('skipWaiting');
+                        }
+                    });
+                });
+            })
+            .catch((error) => {
+                console.log('SW registration failed:', error);
+            });
+
+        // Reload when new SW takes over
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('New SW active, reloading...');
+        });
+    }
+</script>
+</body>
+</html>
