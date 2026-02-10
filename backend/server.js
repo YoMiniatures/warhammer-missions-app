@@ -1064,6 +1064,53 @@ app.post('/api/misiones/:id/completar', async (req, res) => {
   }
 });
 
+// POST /api/misiones/:id/deadline - Actualizar deadline de una misión
+app.post('/api/misiones/:id/deadline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deadline } = req.body;
+
+    if (!deadline) {
+      return res.status(400).json({ success: false, error: 'deadline es requerido' });
+    }
+
+    const añosACargar = detectarAñosACargar();
+    let misionPath = null;
+
+    for (const año of añosACargar) {
+      for (const getRuta of [getRutaMisionesActivas, getRutaMisionesOpcionales]) {
+        const ruta = getRuta(año);
+        if (ruta) {
+          const posiblePath = path.join(ruta, `${id}.md`);
+          try {
+            await fs.access(posiblePath);
+            misionPath = posiblePath;
+            break;
+          } catch {}
+        }
+      }
+      if (misionPath) break;
+    }
+
+    if (!misionPath) {
+      return res.status(404).json({ success: false, error: 'Misión no encontrada' });
+    }
+
+    const mision = await leerMision(misionPath);
+    if (!mision) {
+      return res.status(500).json({ success: false, error: 'Error al leer la misión' });
+    }
+
+    mision.frontmatter.deadline = deadline;
+    await escribirMision(misionPath, mision.frontmatter, mision.contenido);
+
+    res.json({ success: true, message: 'Deadline actualizado', deadline });
+  } catch (error) {
+    console.error(`Error actualizando deadline ${req.params.id}:`, error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/misiones/crear - Crear una nueva misión
 app.post('/api/misiones/crear', async (req, res) => {
   try {

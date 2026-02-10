@@ -411,6 +411,49 @@ async function completarMision(id, titulo, xp) {
     }
 }
 
+/**
+ * Edit mission deadline via native date picker
+ */
+async function editarDeadline(id, currentDeadline) {
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = currentDeadline || '';
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    input.style.top = '0';
+    document.body.appendChild(input);
+
+    input.addEventListener('change', async () => {
+        const newDeadline = input.value;
+        input.remove();
+        if (!newDeadline) return;
+
+        try {
+            const response = await fetch(`/api/misiones/${encodeURIComponent(id)}/deadline`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deadline: newDeadline })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Deadline updated', 'success');
+                await cargarDatos();
+            } else {
+                showToast(data.error || 'Error', 'error');
+            }
+        } catch (error) {
+            console.error('[Bridge] Error updating deadline:', error);
+            showToast('Connection error', 'error');
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        setTimeout(() => input.remove(), 200);
+    });
+
+    input.showPicker ? input.showPicker() : input.click();
+}
+
 // ==========================================
 //  RENDER FUNCTIONS
 // ==========================================
@@ -500,14 +543,14 @@ function renderMisionesUrgentes() {
         const xp = m['puntos-xp'] || 0;
 
         return `
-            <label class="group flex gap-x-3 py-3 px-3 flex-row rounded-sm cursor-pointer relative overflow-hidden transition-colors
-                ${isFirst ? 'bg-[#261b1d] border border-primary/40 hover:bg-[#2f1f22]' : 'bg-[#1e1617] border border-[#332224] hover:border-secondary/30'}"
+            <div class="group flex gap-x-3 py-3 px-3 flex-row rounded-sm relative overflow-hidden transition-colors
+                ${isFirst ? 'bg-[#261b1d] border border-primary/40' : 'bg-[#1e1617] border border-[#332224]'}"
                 data-mision-id="${m.id}">
                 ${isFirst ? '<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>' : ''}
                 <input type="checkbox"
-                    class="${isFirst ? 'urgent' : ''}"
+                    class="cursor-pointer ${isFirst ? 'urgent' : ''}"
                     onchange="completarMision('${m.id}', '${m.titulo.replace(/'/g, "\\'")}', ${xp})">
-                <div class="flex flex-col flex-1">
+                <div class="flex flex-col flex-1 min-w-0">
                     <p class="text-sm font-bold leading-normal font-display ${isFirst ? 'text-white' : 'text-gray-200'}">
                         ${icon}${m.titulo}
                     </p>
@@ -522,7 +565,10 @@ function renderMisionesUrgentes() {
                     </div>
                     ${isFirst && m.prioridad === 'alta' ? '<p class="text-primary text-xs font-mono mt-0.5">!! PRIORITY ALPHA !!</p>' : ''}
                 </div>
-            </label>
+                <button onclick="editarDeadline('${m.id}', '${m.deadline || ''}')" class="self-center opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-500 hover:text-secondary">
+                    <span class="material-symbols-outlined text-base">edit_calendar</span>
+                </button>
+            </div>
         `;
     }).join('');
 }
@@ -592,15 +638,18 @@ function renderMisionesOpcionales() {
         const xp = m['puntos-xp'] || 0;
 
         return `
-            <label class="group flex gap-x-3 py-2 px-2 flex-row border border-transparent rounded-sm hover:bg-[#1e1617] hover:border-[#332224] transition-all cursor-pointer opacity-70 hover:opacity-100"
+            <div class="group flex gap-x-3 py-2 px-2 flex-row border border-transparent rounded-sm hover:bg-[#1e1617] hover:border-[#332224] transition-all opacity-70 hover:opacity-100"
                 data-mision-id="${m.id}">
-                <input type="checkbox" class="h-4 w-4 mt-1"
+                <input type="checkbox" class="h-4 w-4 mt-1 cursor-pointer"
                     onchange="completarMision('${m.id}', '${m.titulo.replace(/'/g, "\\'")}', ${xp})">
                 <p class="text-gray-400 text-sm font-normal leading-normal font-display flex-1">
                     ${m.titulo}
                 </p>
                 ${xp ? `<span class="text-[9px] text-gray-600 font-mono self-center">+${xp}</span>` : ''}
-            </label>
+                <button onclick="editarDeadline('${m.id}', '')" class="self-center opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-500 hover:text-secondary">
+                    <span class="material-symbols-outlined text-sm">edit_calendar</span>
+                </button>
+            </div>
         `;
     }).join('');
 }
