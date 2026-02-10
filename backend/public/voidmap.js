@@ -694,12 +694,12 @@ function zoomToPlanet(planetIndex) {
     const mesh = planetMeshes[planetIndex];
     const planetPos = mesh.position.clone();
 
-    // Camera position: slightly offset from the planet
+    // Camera position: offset from the planet (pulled back for fullscreen)
     const dir = planetPos.clone().normalize();
     const targetCamPos = {
-        x: planetPos.x + dir.x * 1.5,
-        y: planetPos.y + 1.2,
-        z: planetPos.z + dir.z * 1.5
+        x: planetPos.x + dir.x * 2.5,
+        y: planetPos.y + 2.0,
+        z: planetPos.z + dir.z * 2.5
     };
     const targetLookAt = {
         x: planetPos.x,

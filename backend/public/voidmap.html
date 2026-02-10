@@ -147,15 +147,7 @@
         #three-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; touch-action: none; }
         #planet-labels { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; overflow: hidden; }
 
-        /* HUD flicker effect */
-        @keyframes hudFlicker {
-            0%, 95%, 100% { opacity: 1; }
-            96% { opacity: 0.85; }
-            97% { opacity: 0.95; }
-            98% { opacity: 0.7; }
-            99% { opacity: 0.9; }
-        }
-        .hud-flicker { animation: hudFlicker 8s infinite; }
+        /* HUD flicker effect (disabled for now) */
         .planet-label { position: absolute; transform: translate(-50%, -100%); pointer-events: auto; cursor: pointer; text-align: center; transition: opacity 0.2s; }
         .year-pill { padding: 4px 12px; font-size: 10px; font-family: monospace; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid #332224; color: #888; background: transparent; cursor: pointer; transition: all 0.2s; }
         .year-pill-active { border-color: #c5a065; color: #c5a065; background: rgba(197,160,101,0.1); }
@@ -167,7 +159,7 @@
     <div id="planet-labels"></div>
 
     <!-- === UI OVERLAY (HUD) === -->
-    <div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto border-x border-[#332224]/30 z-10 hud-flicker pointer-events-none">
+    <div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto border-x border-[#332224]/30 z-10 pointer-events-none">
 
         <!-- Scanlines overlay -->
         <div class="fixed inset-0 z-50 pointer-events-none opacity-20 scanlines"></div>
