@@ -148,16 +148,9 @@ async function cargarReviews() {
             }
         }
 
-        // 2. NO HAY CACHE - Necesitamos datos del cogitator
+        // 2. NO HAY CACHE - Intentar fetch siempre (cogitator puede estar disponible
+        //    aunque getCogitatorStatus devuelva false en el primer load)
         setLoading(true);
-
-        if (!cogitatorOnline) {
-            updateConnectionUI(false);
-            showToast('Cogitator no disponible - No hay datos en caché', 'error');
-            showError();
-            return;
-        }
-
         await fetchAndCacheReviews(false);
 
     } catch (err) {
