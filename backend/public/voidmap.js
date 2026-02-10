@@ -183,12 +183,12 @@ const ESTADO_COLORS = {
 
 function getFechaImperial() {
     const now = new Date();
-    const dias = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
-    const meses = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-    const dia = dias[now.getDay()];
-    const num = now.getDate();
+    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const diaSemana = dias[now.getDay()];
+    const dia = String(now.getDate()).padStart(2, '0');
     const mes = meses[now.getMonth()];
-    return `+++ ${dia} ${num} ${mes} +++`;
+    return `+++ ${diaSemana} ${dia} ${mes} +++`;
 }
 
 function setLoading(loading) {

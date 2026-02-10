@@ -377,11 +377,13 @@ function setFechaImperial() {
     if (!fechaEl) return;
 
     const now = new Date();
-    const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-    const yearSuffix = now.getFullYear().toString().slice(-3);
-    const checkDigit = Math.floor(Math.random() * 10);
+    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const diaSemana = dias[now.getDay()];
+    const dia = String(now.getDate()).padStart(2, '0');
+    const mes = meses[now.getMonth()];
 
-    fechaEl.textContent = `${checkDigit}.${dayOfYear.toString().padStart(3, '0')}.${yearSuffix}.M3`;
+    fechaEl.textContent = `+++ ${diaSemana} ${dia} ${mes} +++`;
 }
 
 /**

@@ -34,12 +34,12 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
 
 function getFechaImperial() {
     const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 0);
-    const diff = now - start;
-    const oneDay = 1000 * 60 * 60 * 24;
-    const dayOfYear = Math.floor(diff / oneDay);
-    const year = now.getFullYear();
-    return `0.${String(dayOfYear).padStart(3, '0')}.${year}.M3`;
+    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const diaSemana = dias[now.getDay()];
+    const dia = String(now.getDate()).padStart(2, '0');
+    const mes = meses[now.getMonth()];
+    return `+++ ${diaSemana} ${dia} ${mes} +++`;
 }
 
 function parseFechaLocal(fechaStr) {

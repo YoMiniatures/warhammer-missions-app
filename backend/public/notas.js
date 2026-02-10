@@ -32,9 +32,12 @@ function setFechaImperial() {
     const el = document.getElementById('fecha-imperial');
     if (!el) return;
     const now = new Date();
-    const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-    const frac = Math.floor((now.getHours() * 60 + now.getMinutes()) / 1.44);
-    el.textContent = `${frac.toString().padStart(3, '0')}.${dayOfYear.toString().padStart(3, '0')}.${now.getFullYear() - 1000}.M3`;
+    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const diaSemana = dias[now.getDay()];
+    const dia = String(now.getDate()).padStart(2, '0');
+    const mes = meses[now.getMonth()];
+    el.textContent = `+++ ${diaSemana} ${dia} ${mes} +++`;
 }
 
 function setupOnlineListeners() {
