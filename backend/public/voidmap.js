@@ -196,15 +196,17 @@ function setLoading(loading) {
     const errorEl = document.getElementById('error-state');
     const view3d = document.getElementById('view-3d');
     const viewLinear = document.getElementById('view-linear');
-    const controlsBar = document.querySelector('[data-controls]') || document.getElementById('year-switcher')?.parentElement;
+    const labelsEl = document.getElementById('planet-labels');
 
     if (loading) {
         loadingEl.classList.remove('hidden');
         errorEl.classList.add('hidden');
         view3d.classList.add('hidden');
         viewLinear.classList.add('hidden');
+        if (labelsEl) labelsEl.style.display = 'none';
     } else {
         loadingEl.classList.add('hidden');
+        if (labelsEl) labelsEl.style.display = '';
         if (currentView === '3d') {
             view3d.classList.remove('hidden');
             viewLinear.classList.add('hidden');
