@@ -607,11 +607,11 @@ function createPlanets(planetasData) {
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, 0, z);
-        // Kepler-accurate orbital speed: v ∝ 1/√r (closer to sun = faster)
-        // Base factor is very slow for subtle, realistic feel
-        const orbitSpeed = 0.012 / Math.sqrt(radius) + seededRandom(index * 17 + 1) * 0.002;
-        // Spin: smaller planets spin a bit faster, with per-planet variance
-        const spinSpeed = 0.04 + seededRandom(index * 11 + 3) * 0.08;
+        // Kepler's 3rd law: angular velocity ω ∝ r^(-3/2) — steep falloff for far planets
+        // r=2.5 → ~0.006 rad/s (orbit ~17min), r=7.0 → ~0.001 rad/s (orbit ~80min)
+        const orbitSpeed = 0.025 * Math.pow(radius, -1.5) + seededRandom(index * 17 + 1) * 0.001;
+        // Spin: wide variance per planet
+        const spinSpeed = 0.03 + seededRandom(index * 11 + 3) * 0.12;
         mesh.userData = { planeta, index, orbitRadius: radius, orbitAngle: angle, orbitSpeed, spinSpeed };
 
         // Golden ring for current month
