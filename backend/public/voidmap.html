@@ -167,13 +167,13 @@
     <div id="planet-labels"></div>
 
     <!-- === UI OVERLAY (HUD) === -->
-    <div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto border-x border-[#332224]/30 z-10 hud-flicker">
+    <div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto border-x border-[#332224]/30 z-10 hud-flicker pointer-events-none">
 
         <!-- Scanlines overlay -->
         <div class="fixed inset-0 z-50 pointer-events-none opacity-20 scanlines"></div>
 
         <!-- === HEADER === -->
-        <header class="flex items-center bg-[#221618]/60 backdrop-blur-sm border-b border-[#332224]/40 p-4 pb-3 justify-between sticky top-0 z-40">
+        <header class="flex items-center bg-[#221618]/60 backdrop-blur-sm border-b border-[#332224]/40 p-4 pb-3 justify-between sticky top-0 z-40 pointer-events-auto">
             <div class="flex shrink-0 items-center gap-3">
                 <div class="relative">
                     <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
@@ -197,7 +197,7 @@
         </header>
 
         <!-- === TITLE === -->
-        <div class="px-5 pt-3 pb-1">
+        <div class="px-5 pt-3 pb-1 pointer-events-auto">
             <div class="flex items-center justify-between">
                 <div>
                     <h2 class="text-white tracking-tight text-xl font-bold leading-tight uppercase font-display retro-glow">
@@ -210,7 +210,7 @@
         </div>
 
         <!-- === CONTROLS BAR === -->
-        <div class="px-5 mb-2 flex justify-between items-center">
+        <div class="px-5 mb-2 flex justify-between items-center pointer-events-auto">
             <div id="year-switcher" class="flex gap-2">
                 <button class="year-pill" data-year="2025">2025</button>
                 <button class="year-pill year-pill-active" data-year="2026">2026</button>
@@ -232,16 +232,16 @@
         </div>
 
         <!-- === 3D VIEW (overlays only - canvas is at body level) === -->
-        <div id="view-3d" class="relative flex-1 pointer-events-none">
-
-            <!-- ZOOM OUT BUTTON (visible only when zoomed in) -->
-            <button id="btn-zoom-out" class="hidden fixed top-16 left-3 z-30 pointer-events-auto flex items-center gap-1 bg-[#1a1718]/80 border border-[#332224] text-gray-400 text-[10px] font-mono px-3 py-1.5 hover:border-secondary/50 hover:text-secondary transition-all backdrop-blur-sm">
-                <span class="material-symbols-outlined text-sm">zoom_out_map</span>
-                SYSTEM VIEW
-            </button>
+        <div id="view-3d" class="relative flex-1">
 
             <!-- PLANET SUMMARY PANEL (visible only when zoomed in) -->
-            <div id="planet-summary" class="hidden fixed bottom-20 left-3 right-3 max-w-md mx-auto z-30 pointer-events-auto bg-[#1a1718]/90 border border-secondary/30 p-4 backdrop-blur-md">
+            <div id="planet-summary" class="hidden fixed bottom-20 left-3 right-3 max-w-md mx-auto z-30 pointer-events-auto bg-[#1a1718]/90 border border-secondary/30 backdrop-blur-md">
+                <!-- ZOOM OUT BUTTON (top of panel) -->
+                <button id="btn-zoom-out" class="w-full flex items-center justify-center gap-2 py-2 text-gray-400 text-[10px] font-mono border-b border-[#332224]/50 hover:text-secondary transition-all">
+                    <span class="material-symbols-outlined text-sm">zoom_out_map</span>
+                    SYSTEM VIEW
+                </button>
+                <div class="p-4">
                 <div class="flex items-center justify-between mb-2">
                     <div>
                         <div class="text-[9px] text-secondary font-mono tracking-widest uppercase">Current Position</div>
@@ -267,11 +267,12 @@
                     <span class="material-symbols-outlined text-sm">open_in_new</span>
                     Planet Detail
                 </a>
+                </div>
             </div>
         </div>
 
         <!-- === LINEAR VIEW === -->
-        <div id="view-linear" class="hidden flex-1 overflow-y-auto px-4 pb-24 space-y-2 pt-2 bg-[#0f0f10]/80 backdrop-blur-sm"></div>
+        <div id="view-linear" class="hidden flex-1 overflow-y-auto px-4 pb-24 space-y-2 pt-2 bg-[#0f0f10]/80 backdrop-blur-sm pointer-events-auto"></div>
 
         <!-- === LOADING STATE === -->
         <div id="loading-state" class="flex-1 flex items-center justify-center">
@@ -279,13 +280,13 @@
         </div>
 
         <!-- === ERROR STATE === -->
-        <div id="error-state" class="hidden flex-1 flex-col items-center justify-center gap-4 p-4 py-20">
+        <div id="error-state" class="hidden flex-1 flex-col items-center justify-center gap-4 p-4 py-20 pointer-events-auto">
             <p class="text-primary font-mono text-sm">/// AUSPEX FAILURE ///</p>
             <button onclick="cargarPlanetas()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">RETRY</button>
         </div>
 
         <!-- === BOTTOM NAVIGATION === -->
-        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011]/75 border-t border-[#332224]/40 h-16 flex items-center justify-around z-40 backdrop-blur-md">
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011]/75 border-t border-[#332224]/40 h-16 flex items-center justify-around z-40 backdrop-blur-md pointer-events-auto">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>

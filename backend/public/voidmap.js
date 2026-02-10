@@ -711,7 +711,6 @@ function zoomToPlanet(planetIndex) {
         zoomState = 'zoomed';
         controls.autoRotate = false;
         showSummaryPanel(mesh.userData.planeta);
-        document.getElementById('btn-zoom-out')?.classList.remove('hidden');
     });
 }
 
@@ -719,7 +718,6 @@ function zoomToOverview() {
     if (isAnimatingCamera) return;
 
     hideSummaryPanel();
-    document.getElementById('btn-zoom-out')?.classList.add('hidden');
 
     animateCamera(OVERVIEW_POS, OVERVIEW_TARGET, 800, () => {
         zoomState = 'overview';
@@ -1005,7 +1003,6 @@ function toggleView() {
         toggleLabel.textContent = '3D MAP';
         stopAnimation();
         hideSummaryPanel();
-        document.getElementById('btn-zoom-out')?.classList.add('hidden');
         renderLinearView();
     } else {
         currentView = '3d';
@@ -1028,7 +1025,6 @@ function switchYear(año) {
     zoomState = 'overview';
     controls.autoRotate = true;
     hideSummaryPanel();
-    document.getElementById('btn-zoom-out')?.classList.add('hidden');
     camera.position.set(OVERVIEW_POS.x, OVERVIEW_POS.y, OVERVIEW_POS.z);
     controls.target.set(OVERVIEW_TARGET.x, OVERVIEW_TARGET.y, OVERVIEW_TARGET.z);
 
