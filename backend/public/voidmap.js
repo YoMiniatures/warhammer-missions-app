@@ -648,9 +648,20 @@ function positionShip(ship, x, z, size) {
         scene.remove(imperialShip);
     }
     imperialShip = ship;
-    const shipOffset = size + 0.5;
-    imperialShip.position.set(x + shipOffset * 0.6, 0.4, z + shipOffset * 0.3);
-    imperialShip.lookAt(0, 0.2, 0);
+    // Position relative to planet's orbital direction so it's visible when zoomed
+    const len = Math.sqrt(x * x + z * z) || 1;
+    const dirX = x / len;
+    const dirZ = z / len;
+    // Perpendicular in XZ plane (right side from zoom camera's POV)
+    const perpX = -dirZ;
+    const perpZ = dirX;
+    const gap = size + 0.35;
+    imperialShip.position.set(
+        x + perpX * gap,
+        0.3,
+        z + perpZ * gap
+    );
+    imperialShip.lookAt(0, 0.1, 0);
     scene.add(imperialShip);
 }
 
@@ -865,10 +876,10 @@ function animate() {
     // Update shader sun effect (perlin cubemap + glow + rays)
     updateSunEffect();
 
-    // Imperial ship subtle hover animation
+    // Imperial ship subtle hover animation (very gentle)
     if (imperialShip) {
-        imperialShip.position.y = 0.4 + Math.sin(Date.now() * 0.002) * 0.05;
-        imperialShip.rotation.z = Math.sin(Date.now() * 0.001) * 0.03;
+        imperialShip.position.y = 0.3 + Math.sin(Date.now() * 0.0008) * 0.015;
+        imperialShip.rotation.z = Math.sin(Date.now() * 0.0006) * 0.008;
     }
 
     renderer.render(scene, camera);
