@@ -1,7 +1,7 @@
 // Warhammer Vault - Service Worker v15.0
 // Full offline support + Background Sync + Cache-First IndexedDB
 
-const CACHE_VERSION = 'v58';
+const CACHE_VERSION = 'v63';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
@@ -34,6 +34,8 @@ const PRECACHE_ASSETS = [
     '/voidmap.js',
     '/planeta-detalle.html',
     '/planeta-detalle.js',
+    '/inquisicion.html',
+    '/inquisicion.js',
     '/db.js',
     '/sync-utils.js',
     '/manifest.json',
@@ -45,7 +47,7 @@ const PRECACHE_ASSETS = [
 ];
 
 // HTML pages for navigation fallback
-const HTML_PAGES = ['/', '/index.html', '/install.html', '/duty.html', '/directivas.html', '/directiva-detalle.html', '/auspex.html', '/cargo.html', '/notas.html', '/recordadora.html', '/voidmap.html', '/planeta-detalle.html'];
+const HTML_PAGES = ['/', '/index.html', '/install.html', '/duty.html', '/directivas.html', '/directiva-detalle.html', '/auspex.html', '/cargo.html', '/notas.html', '/recordadora.html', '/voidmap.html', '/planeta-detalle.html', '/inquisicion.html'];
 
 // Install - pre-cache all static assets
 self.addEventListener('install', (event) => {

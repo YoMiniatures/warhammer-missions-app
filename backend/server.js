@@ -75,6 +75,12 @@ function getRutaIncursiones(año) {
   return null;
 }
 
+function getRutaReviews(año) {
+  if (año === 2025) return path.join(SISTEMAS_PATH, 'SISTEMA AQUILA - AÑO 2025', '00 - REVIEWS');
+  if (año === 2026) return path.join(SISTEMAS_PATH, 'SISTEMA HIPPARION - AÑO 2026', '00 - REVIEWS');
+  return null;
+}
+
 function getRutaPlanetas(año) {
   if (año === 2025) return path.join(SISTEMAS_PATH, 'SISTEMA AQUILA - AÑO 2025', '02 - PLANETAS');
   if (año === 2026) return path.join(SISTEMAS_PATH, 'SISTEMA HIPPARION - AÑO 2026', '02 - PLANETAS');
@@ -661,9 +667,11 @@ app.get(['/api/eventos/anual', '/api/eventos/año'], async (req, res) => {
   }
 });
 
-// GET /api/eventos/semana - Obtener eventos de esta semana (con recurrencia)
+// GET /api/eventos/semana - Obtener eventos de esta semana o rango extendido (con recurrencia)
+// Query params: ?dias=N (default 7, semana actual lunes-domingo)
 app.get('/api/eventos/semana', async (req, res) => {
   try {
+    const diasParam = parseInt(req.query.dias) || 0;
     const añosACargar = detectarAñosACargar();
 
     // 1. Cargar eventos, avisos y vacaciones de todos los años
@@ -684,20 +692,32 @@ app.get('/api/eventos/semana', async (req, res) => {
     const avisos = await cargarArchivosRecursivos(AVISOS_PATH, ['aviso']);
     todosItems = [...todosItems, ...avisos];
 
-    // 3. Calcular inicio y fin de semana (lunes a domingo)
+    // 3. Calcular rango de fechas
     const ahora = new Date();
-    const diaSemana = ahora.getDay(); // 0 = domingo, 1 = lunes, etc.
-    const diff = (diaSemana === 0 ? -6 : 1 - diaSemana); // Lunes = inicio
-    const inicioSemana = new Date(ahora);
-    inicioSemana.setDate(ahora.getDate() + diff);
-    inicioSemana.setHours(0, 0, 0, 0);
+    let inicioRango;
+    let totalDias;
+
+    if (diasParam > 0) {
+      // Rango extendido: desde hoy + N días
+      inicioRango = new Date(ahora);
+      inicioRango.setHours(0, 0, 0, 0);
+      totalDias = diasParam;
+    } else {
+      // Default: semana actual (lunes a domingo)
+      const diaSemana = ahora.getDay(); // 0 = domingo, 1 = lunes, etc.
+      const diff = (diaSemana === 0 ? -6 : 1 - diaSemana); // Lunes = inicio
+      inicioRango = new Date(ahora);
+      inicioRango.setDate(ahora.getDate() + diff);
+      inicioRango.setHours(0, 0, 0, 0);
+      totalDias = 7;
+    }
 
     let eventosSemana = [];
 
-    // 4. Iterar por cada día de la semana (lunes a domingo = 7 días)
-    for (let i = 0; i <= 6; i++) {
-      const diaActual = new Date(inicioSemana);
-      diaActual.setDate(inicioSemana.getDate() + i);
+    // 4. Iterar por cada día del rango
+    for (let i = 0; i < totalDias; i++) {
+      const diaActual = new Date(inicioRango);
+      diaActual.setDate(inicioRango.getDate() + i);
       const fechaStr = `${diaActual.getFullYear()}-${String(diaActual.getMonth() + 1).padStart(2, '0')}-${String(diaActual.getDate()).padStart(2, '0')}`;
       const dia = diaActual.getDate();
       const mes = diaActual.getMonth() + 1; // getMonth() devuelve 0-11
@@ -2029,6 +2049,158 @@ app.post('/api/incursion/mood', async (req, res) => {
 
   } catch (error) {
     console.error('Error en /api/incursion/mood:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// REVIEWS SEMANALES (INQUISICIÓN) ENDPOINTS
+// ============================================
+
+const ELEMENT_COLORS = {
+  khorne: '#dc2626', nurgle: '#22c55e', tzeentch: '#3b82f6', slaanesh: '#a855f7',
+  disciplina: '#C9A961', fe: '#e5e7eb', deber: '#cd7f32', humildad: '#6b7280'
+};
+const ELEMENT_TYPES = {
+  khorne: 'caos', nurgle: 'caos', tzeentch: 'caos', slaanesh: 'caos',
+  disciplina: 'imperio', fe: 'imperio', deber: 'imperio', humildad: 'imperio'
+};
+
+// GET /api/reviews?ano=YYYY - Listar reviews semanales con stats calculadas desde incursiones
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const año = parseInt(req.query.ano) || new Date().getFullYear();
+    const rutaReviews = getRutaReviews(año);
+    const rutaIncursiones = getRutaIncursiones(año);
+
+    if (!rutaReviews || !rutaIncursiones || !existsSync(rutaReviews)) {
+      return res.json({ success: true, ano: año, totalSemanas: 0, resumen: { purezaPromedio: 0, xpTotal: 0, diasPerfectos: 0, semanasTrackeadas: 0, rutinasCompletadas: 0, rutinasTotal: 0 }, reviews: [] });
+    }
+
+    // 1. Leer todos los archivos de review
+    const reviewEntries = readdirSync(rutaReviews).filter(f => f.startsWith('SEMANA-') && f.endsWith('.md'));
+
+    // 2. Leer todas las incursiones del año una sola vez y agrupar por semana
+    const incursionsByWeek = {};
+    if (existsSync(rutaIncursiones)) {
+      const incEntries = readdirSync(rutaIncursiones).filter(f => /^\d{4}-\d{2}-\d{2}/.test(f) && f.endsWith('.md'));
+      for (const incFile of incEntries) {
+        try {
+          const content = readFileSync(path.join(rutaIncursiones, incFile), 'utf-8');
+          const { data } = matter(content);
+          if (data.tipo === 'incursion-diaria') {
+            const semana = parseInt(data.semana) || 0;
+            if (!incursionsByWeek[semana]) incursionsByWeek[semana] = [];
+            incursionsByWeek[semana].push(data);
+          }
+        } catch (e) { /* skip malformed files */ }
+      }
+    }
+
+    // 3. Para cada review, calcular stats desde incursiones
+    const reviews = [];
+    let totalXp = 0, totalDiasPerfectos = 0, totalRutinas = 0, totalRutinasMax = 0;
+    const purezas = [];
+
+    for (const reviewFile of reviewEntries) {
+      try {
+        const content = readFileSync(path.join(rutaReviews, reviewFile), 'utf-8');
+        const { data } = matter(content);
+
+        const semana = parseInt(data.semana) || 0;
+        const incursiones = incursionsByWeek[semana] || [];
+
+        let rutinasTotal = 0, diasPerfectos = 0, xpTotal = 0;
+        let khorne = 0, nurgle = 0, tzeentch = 0, slaanesh = 0;
+        let disciplina = 0, fe = 0, deber = 0, humildad = 0;
+        const purezasDia = [];
+
+        incursiones.forEach(inc => {
+          rutinasTotal += inc['rutinas-completadas'] || 0;
+          purezasDia.push(inc['pureza-dia'] || 0);
+          if (inc['dia-perfecto']) diasPerfectos++;
+          xpTotal += inc['xp-total-dia'] || 0;
+          khorne += inc['caos-khorne'] || 0;
+          nurgle += inc['caos-nurgle'] || 0;
+          tzeentch += inc['caos-tzeentch'] || 0;
+          slaanesh += inc['caos-slaanesh'] || 0;
+          disciplina += inc['imperio-disciplina'] || 0;
+          fe += inc['imperio-fe'] || 0;
+          deber += inc['imperio-deber'] || 0;
+          humildad += inc['imperio-humildad'] || 0;
+        });
+
+        const numDias = incursiones.length;
+        const purezaPromedio = numDias > 0 ? Math.round(purezasDia.reduce((a, b) => a + b, 0) / numDias) : 0;
+        const maxRutinas = numDias * TOTAL_RUTINAS;
+
+        const nivelPureza = purezaPromedio >= 80 ? 'Puro' : purezaPromedio >= 50 ? 'Equilibrado' : 'Corrompido';
+        const colorPureza = purezaPromedio >= 80 ? '#22c55e' : purezaPromedio >= 50 ? '#f59e0b' : '#ef4444';
+
+        // Elemento dominante
+        const elementos = { khorne, nurgle, tzeentch, slaanesh, disciplina, fe, deber, humildad };
+        let dominanteName = 'disciplina';
+        let dominanteVal = 0;
+        for (const [key, val] of Object.entries(elementos)) {
+          const avg = numDias > 0 ? Math.round(val / numDias) : 0;
+          if (avg > dominanteVal) { dominanteVal = avg; dominanteName = key; }
+        }
+
+        // Acumular para resumen global
+        totalXp += xpTotal;
+        totalDiasPerfectos += diasPerfectos;
+        totalRutinas += rutinasTotal;
+        totalRutinasMax += maxRutinas;
+        if (numDias > 0) purezas.push(purezaPromedio);
+
+        const reflexion = (data['reflexion-semana'] || '').trim();
+
+        reviews.push({
+          id: reviewFile.replace('.md', ''),
+          semana,
+          ano: data['año'] || año,
+          fechaInicio: normalizarFecha(data['fecha-inicio']),
+          fechaFin: normalizarFecha(data['fecha-fin']),
+          reflexion: reflexion === '[Tu reflexión aquí]' ? '' : reflexion,
+          diasRegistrados: numDias,
+          diasPerfectos,
+          purezaPromedio,
+          rutinasCompletadas: rutinasTotal,
+          rutinasTotal: maxRutinas,
+          xpTotal,
+          nivelPureza,
+          colorPureza,
+          elementoDominante: {
+            nombre: dominanteName,
+            tipo: ELEMENT_TYPES[dominanteName],
+            valor: dominanteVal,
+            color: ELEMENT_COLORS[dominanteName]
+          }
+        });
+      } catch (e) { /* skip malformed review files */ }
+    }
+
+    // Ordenar por semana descendente (más reciente primero)
+    reviews.sort((a, b) => b.semana - a.semana);
+
+    const purezaGlobal = purezas.length > 0 ? Math.round(purezas.reduce((a, b) => a + b, 0) / purezas.length) : 0;
+
+    res.json({
+      success: true,
+      ano: año,
+      totalSemanas: reviews.length,
+      resumen: {
+        purezaPromedio: purezaGlobal,
+        xpTotal: totalXp,
+        diasPerfectos: totalDiasPerfectos,
+        semanasTrackeadas: reviews.length,
+        rutinasCompletadas: totalRutinas,
+        rutinasTotal: totalRutinasMax
+      },
+      reviews
+    });
+  } catch (error) {
+    console.error('Error en GET /api/reviews:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

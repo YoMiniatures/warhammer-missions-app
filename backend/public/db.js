@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'wh-vault-db';
-const DB_VERSION = 7; // v7: Planetas (VoidMap) store
+const DB_VERSION = 8; // v8: Reviews (Inquisición) store
 
 // Stores
 const STORES = {
@@ -20,7 +20,8 @@ const STORES = {
     CARGO: 'cargo', // Bloc de notas local para offload a Obsidian
     NOTAS_SAGRADAS: 'notas-sagradas', // Cuaderno de bitácora
     AVISOS: 'avisos', // Recordadora - memorándums imperiales
-    PLANETAS: 'planetas' // VoidMap - planetas del sistema
+    PLANETAS: 'planetas', // VoidMap - planetas del sistema
+    REVIEWS: 'reviews' // Inquisición - reviews semanales
 };
 
 // Freshness threshold: 5 minutes

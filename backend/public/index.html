@@ -321,12 +321,21 @@
                     <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
                 </div>
             </div>
-            <div class="flex flex-col items-end">
-                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
-                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
-                    <span id="status-text">NOMINAL</span>
+            <div class="flex items-center gap-3">
+                <!-- Recordadora orb button -->
+                <button onclick="abrirRecordadora()" class="relative group" title="Orbe de Reminiscencia">
+                    <div class="size-8 bg-[#1a1718] border border-purple-500/40 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(160,32,240,0.2)] active:scale-90 transition-transform">
+                        <span class="material-symbols-outlined text-purple-400 text-lg" style="text-shadow: 0 0 5px rgba(160,32,240,0.5);">mindfulness</span>
+                    </div>
+                    <span id="memo-badge" class="hidden absolute -top-1 -right-1 min-w-[14px] h-[14px] bg-purple-500 rounded-full text-[8px] font-bold text-white flex items-center justify-center px-0.5 border-2 border-[#221618]">0</span>
+                </button>
+                <div class="flex flex-col items-end">
+                    <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                        <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                        <span id="status-text">NOMINAL</span>
+                    </div>
+                    <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
                 </div>
-                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
             </div>
         </header>
 
@@ -339,18 +348,18 @@
         </div>
 
         <!-- === AUSPEX TICKER === -->
-        <div id="ticker-container" class="mt-4 border-y border-[#332224] bg-[#161011] h-14 flex items-center overflow-hidden relative shadow-lg hidden">
-            <a href="auspex.html" class="absolute left-0 top-0 bottom-0 bg-[#221618] flex items-center pl-4 pr-3 border-r border-[#332224] z-20 shadow-[4px_0_10px_rgba(0,0,0,0.5)] hover:bg-[#2a1e20] transition-colors">
+        <div id="ticker-container" class="mt-4 border-y border-[#0a2a10] bg-[#060d08] h-14 flex items-center overflow-hidden relative shadow-lg hidden">
+            <a href="auspex.html" class="absolute left-0 top-0 bottom-0 bg-[#0a1a0d] flex items-center pl-4 pr-3 border-r border-[#0a2a10] z-20 shadow-[4px_0_10px_rgba(0,0,0,0.5)] hover:bg-[#0d2210] transition-colors">
                 <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary text-sm animate-pulse">radar</span>
+                    <span class="material-symbols-outlined text-[#00ff41] text-sm animate-pulse" style="text-shadow: 0 0 8px rgba(0,255,65,0.6);">radar</span>
                     <div class="flex flex-col">
-                        <span class="text-secondary text-[10px] font-bold tracking-widest uppercase whitespace-nowrap leading-none">AUSPEX</span>
-                        <span class="text-gray-500 text-[8px] font-mono leading-none mt-0.5">FEED: LIVE</span>
+                        <span class="text-[#00ff41] text-[10px] font-bold tracking-widest uppercase whitespace-nowrap leading-none" style="text-shadow: 0 0 5px rgba(0,255,65,0.4);">AUSPEX</span>
+                        <span class="text-[#00ff41]/50 text-[8px] font-mono leading-none mt-0.5">FEED: LIVE</span>
                     </div>
                 </div>
             </a>
-            <div class="flex-1 overflow-hidden h-full flex items-center bg-[#0f0f10] relative">
-                <div class="absolute left-0 w-24 h-full bg-gradient-to-r from-[#161011] to-transparent z-10 pl-24 pointer-events-none"></div>
+            <div class="flex-1 overflow-hidden h-full flex items-center bg-[#050a06] relative">
+                <div class="absolute left-0 w-24 h-full bg-gradient-to-r from-[#060d08] to-transparent z-10 pl-24 pointer-events-none"></div>
                 <div id="ticker-content" class="animate-ticker flex items-center whitespace-nowrap pl-[120px]">
                     <!-- Ticker items se insertan aquí -->
                 </div>
@@ -526,6 +535,44 @@
             </div>
         </div>
 
+        <!-- === RECORDADORA MODAL === -->
+        <div id="modal-recordadora" class="hidden fixed inset-0 z-[70] flex items-end justify-center">
+            <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="cerrarRecordadora()"></div>
+            <div class="relative w-full max-w-md bg-[#1a1718] border-t border-purple-500/30 rounded-t-lg max-h-[80vh] flex flex-col shadow-[0_-10px_40px_rgba(160,32,240,0.2)]">
+                <!-- Modal header -->
+                <div class="flex items-center justify-between p-4 border-b border-purple-500/20">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-purple-400 text-xl" style="text-shadow: 0 0 5px rgba(160,32,240,0.5);">mindfulness</span>
+                        <div>
+                            <h3 class="text-purple-300 text-sm font-bold uppercase tracking-wider">Orbe de Reminiscencia</h3>
+                            <p class="text-gray-600 text-[8px] font-mono uppercase tracking-widest">Memoranda &amp; Contemplations</p>
+                        </div>
+                    </div>
+                    <button onclick="cerrarRecordadora()" class="text-gray-500 hover:text-white p-1">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+
+                <!-- Memo input -->
+                <div class="p-4 border-b border-[#332224]">
+                    <div class="flex gap-2">
+                        <input id="memo-input" type="text" placeholder="Inscribe a thought..." class="flex-1 bg-[#0f0f10] border border-purple-500/20 text-gray-200 text-sm px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-purple-500/50 placeholder:text-gray-600" onkeydown="if(event.key==='Enter') guardarMemo()">
+                        <button onclick="guardarMemo()" class="px-3 py-2 bg-purple-500/20 border border-purple-500/40 text-purple-300 text-xs font-bold uppercase tracking-wider hover:bg-purple-500/30 transition-colors">
+                            Seal
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Memos list -->
+                <div id="memos-list" class="flex-1 overflow-y-auto p-4 space-y-2 min-h-[100px] max-h-[50vh]">
+                    <div class="text-center py-6">
+                        <span class="material-symbols-outlined text-3xl text-gray-700 block mb-1">bubble_chart</span>
+                        <p class="text-gray-600 text-xs font-mono">No memoranda inscribed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- === BOTTOM NAVIGATION === -->
         <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
@@ -557,9 +604,9 @@
                 <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
             </a>
-            <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
-                <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
-                <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+            <a href="inquisicion.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">analytics</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Inquis.</span>
             </a>
         </nav>
     </div>

@@ -18,7 +18,7 @@ let isOfflineMode = false;
 function getFechaImperial() {
     const now = new Date();
     const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
     const diaSemana = dias[now.getDay()];
     const dia = String(now.getDate()).padStart(2, '0');
@@ -126,7 +126,8 @@ async function cargarDatos() {
 
             const hasCachedData = urgentesCache.data.length > 0 ||
                                   criteriosCache.data.length > 0 ||
-                                  opcionalesCache.data.length > 0;
+                                  opcionalesCache.data.length > 0 ||
+                                  eventosCache.data.length > 0;
 
             if (hasCachedData) {
                 console.log('[Cache] Displaying cached data immediately');
@@ -146,20 +147,13 @@ async function cargarDatos() {
                 setLoading(false);
 
                 // Mostrar indicador si datos son stale
-                const allFresh = urgentesCache.isFresh && criteriosCache.isFresh && opcionalesCache.isFresh;
+                const allFresh = urgentesCache.isFresh && criteriosCache.isFresh && opcionalesCache.isFresh && eventosCache.isFresh;
                 updateDataFreshnessUI(!allFresh, urgentesCache.lastUpdate);
 
-                // Si datos stale, intentar actualizar en background
-                // (siempre intentar, no depender de navigator.onLine - el cogitator puede estar disponible)
-                if (!allFresh) {
-                    console.log('[Cache] Fetching fresh data in background...');
-                    fetchAndCacheData(true); // silent = true, actualizará connection UI cuando termine
-                } else {
-                    // Datos frescos desde cache - verificar estado cogitator sin bloquear
-                    window.WhVaultDB?.checkCogitatorStatus?.().then(online => {
-                        updateConnectionUI(online);
-                    });
-                }
+                // Siempre actualizar en background para mantener datos frescos
+                // (especialmente eventos que pueden cambiar de rango entre visitas)
+                console.log('[Cache] Fetching fresh data in background...');
+                fetchAndCacheData(true);
 
                 return;
             }
@@ -192,7 +186,7 @@ async function fetchAndCacheData(silent = false) {
             fetchFn(`${API_URL}/misiones/urgentes`),
             fetchFn(`${API_URL}/misiones/criterios-victoria`),
             fetchFn(`${API_URL}/misiones/opcionales`),
-            fetchFn(`${API_URL}/eventos/semana`)
+            fetchFn(`${API_URL}/eventos/semana?dias=30`)
         ]);
 
         const [urgentesRes, criteriosRes, opcionalesRes, eventosRes] = await Promise.all(
@@ -248,6 +242,9 @@ async function fetchAndCacheData(silent = false) {
         if (!silent) {
             renderAll();
             setLoading(false);
+        } else {
+            // Silent background update - re-render with fresh data
+            renderAll();
         }
 
         // Cogitator está online - actualizar estado
@@ -468,14 +465,14 @@ function renderTicker() {
 
     content.innerHTML = allItems.map(item => `
         <div class="flex items-center mx-4">
-            <span class="text-primary text-[10px] mr-2">+++</span>
-            <span class="text-xs font-bold font-display uppercase tracking-wide text-gray-200">
+            <span class="text-[#00ff41]/60 text-[10px] mr-2">+++</span>
+            <span class="text-xs font-bold font-display uppercase tracking-wide text-[#00ff41]/90" style="text-shadow: 0 0 4px rgba(0,255,65,0.3);">
                 ${item.titulo}
             </span>
-            <span class="text-[10px] font-mono ml-2 border px-1 rounded-sm bg-[#1e1617] text-secondary border-secondary/30">
+            <span class="text-[10px] font-mono ml-2 border px-1 rounded-sm bg-[#0a1a0d] text-[#00ff41] border-[#00ff41]/30">
                 ${item.tag}
             </span>
-            ${item.categoria ? `<span class="text-gray-500 text-[10px] font-mono ml-2 uppercase tracking-tight">// ${item.categoria}</span>` : ''}
+            ${item.categoria ? `<span class="text-[#00ff41]/40 text-[10px] font-mono ml-2 uppercase tracking-tight">// ${item.categoria}</span>` : ''}
         </div>
     `).join('');
 }
@@ -631,6 +628,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Cargar memo badge count
+    initMemoBadge();
+
     // Cargar datos iniciales
     cargarDatos();
 
@@ -650,6 +650,151 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('fecha-imperial').textContent = getFechaImperial();
     }, 60000);
 });
+
+// ==========================================
+//  RECORDADORA (Orbe de Reminiscencia)
+// ==========================================
+
+let recordadoraMemos = [];
+let editingMemoId = null;
+
+async function abrirRecordadora() {
+    document.getElementById('modal-recordadora').classList.remove('hidden');
+    document.getElementById('memo-input').value = '';
+    editingMemoId = null;
+    await cargarMemos();
+}
+
+function cerrarRecordadora() {
+    document.getElementById('modal-recordadora').classList.add('hidden');
+    editingMemoId = null;
+}
+
+async function cargarMemos() {
+    try {
+        recordadoraMemos = await window.WhVaultDB.getAllAvisos();
+    } catch (e) {
+        console.error('[Recordadora] Error loading:', e);
+        recordadoraMemos = [];
+    }
+    renderMemos();
+    updateMemoBadge();
+}
+
+function updateMemoBadge() {
+    const badge = document.getElementById('memo-badge');
+    if (!badge) return;
+    if (recordadoraMemos.length > 0) {
+        badge.textContent = recordadoraMemos.length;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function renderMemos() {
+    const container = document.getElementById('memos-list');
+    if (!container) return;
+
+    if (recordadoraMemos.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-6">
+                <span class="material-symbols-outlined text-3xl text-gray-700 block mb-1">bubble_chart</span>
+                <p class="text-gray-600 text-xs font-mono">No memoranda inscribed</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = recordadoraMemos.map(memo => {
+        const texto = memo.titulo || memo.descripcion || '';
+        const timeAgo = memo.timestamp ? formatMemoTimeAgo(memo.timestamp) : '';
+        return `
+            <div class="flex items-start gap-2 p-2 bg-[#0f0f10] border border-[#332224] rounded-sm group hover:border-purple-500/30 transition-colors">
+                <span class="material-symbols-outlined text-purple-400/50 text-sm mt-0.5 flex-shrink-0">format_quote</span>
+                <div class="flex-1 min-w-0 cursor-pointer" onclick="editarMemo('${memo.id}')">
+                    <p class="text-gray-300 text-xs leading-relaxed">${escapeHtmlMemo(texto)}</p>
+                    ${timeAgo ? `<p class="text-gray-600 text-[8px] font-mono mt-1">${timeAgo}</p>` : ''}
+                </div>
+                <button onclick="eliminarMemo('${memo.id}')" class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-primary p-0.5 flex-shrink-0">
+                    <span class="material-symbols-outlined text-sm">close</span>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function editarMemo(id) {
+    const memo = recordadoraMemos.find(m => m.id === id);
+    if (!memo) return;
+    editingMemoId = id;
+    const input = document.getElementById('memo-input');
+    input.value = memo.titulo || memo.descripcion || '';
+    input.focus();
+}
+
+async function guardarMemo() {
+    const input = document.getElementById('memo-input');
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    try {
+        if (editingMemoId) {
+            await window.WhVaultDB.addAviso({
+                id: editingMemoId,
+                titulo: texto,
+                descripcion: texto,
+                timestamp: Date.now()
+            });
+        } else {
+            await window.WhVaultDB.addAviso({
+                titulo: texto,
+                descripcion: texto,
+                timestamp: Date.now()
+            });
+        }
+        input.value = '';
+        editingMemoId = null;
+        await cargarMemos();
+        showToast('Memorandum sealed', 'success');
+    } catch (e) {
+        console.error('[Recordadora] Save error:', e);
+        showToast('Error saving memorandum', 'error');
+    }
+}
+
+async function eliminarMemo(id) {
+    try {
+        await window.WhVaultDB.removeAviso(id);
+        await cargarMemos();
+    } catch (e) {
+        console.error('[Recordadora] Delete error:', e);
+    }
+}
+
+async function initMemoBadge() {
+    try {
+        recordadoraMemos = await window.WhVaultDB.getAllAvisos();
+        updateMemoBadge();
+    } catch (e) { /* ignore */ }
+}
+
+function escapeHtmlMemo(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function formatMemoTimeAgo(timestamp) {
+    if (!timestamp) return 'Unknown';
+    const diff = Date.now() - timestamp;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+    return new Date(timestamp).toLocaleDateString('es-ES');
+}
 
 // ==========================================
 //  CREAR MISIÓN - MODAL FUNCTIONS

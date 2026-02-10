@@ -89,26 +89,28 @@
         <!-- ============================================ -->
         <div id="vista-lista">
             <!-- Header -->
-            <div class="flex items-center bg-[#221618] border-b-2 border-primary/40 p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
                 <div class="flex shrink-0 items-center gap-3">
                     <div class="relative">
-                        <div class="size-10 bg-surface-accent rounded-sm border border-secondary/50 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-secondary text-xl">auto_stories</span>
+                        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                            <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
                         </div>
+                        <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                        <div id="pending-badge" class="pending-badge hidden">0</div>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Cuaderno de Bitácora</span>
+                        <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
                         <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
                     </div>
                 </div>
                 <div class="flex flex-col items-end">
                     <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
-                        <span class="material-symbols-outlined text-[10px]">history_edu</span>
-                        <span>LOGBOOK ACTIVE</span>
+                        <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                        <span id="status-text">NOMINAL</span>
                     </div>
                     <div id="fecha-imperial" class="text-gray-400 font-mono text-xs"></div>
                 </div>
-            </div>
+            </header>
 
             <!-- Title -->
             <div class="relative p-5 pb-2">
@@ -194,9 +196,9 @@
                     <span class="text-[9px] font-bold tracking-widest uppercase gold-glow">Notas</span>
                     <div class="absolute top-0 w-full h-0.5 bg-secondary shadow-[0_0_8px_rgba(197,160,101,0.8)]"></div>
                 </a>
-                <a href="recordadora.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
-                    <span class="material-symbols-outlined text-2xl mb-0.5">notifications</span>
-                    <span class="text-[9px] font-bold tracking-widest uppercase">Recor.</span>
+                <a href="inquisicion.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                    <span class="material-symbols-outlined text-2xl mb-0.5">analytics</span>
+                    <span class="text-[9px] font-bold tracking-widest uppercase">Inquis.</span>
                 </a>
             </nav>
         </div>

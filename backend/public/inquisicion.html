@@ -9,7 +9,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
     <link rel="icon" type="image/png" href="/favicon.png">
-    <title>Directivas - Rogue Trader</title>
+    <title>Inquisición - Rogue Trader</title>
 
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -76,34 +76,12 @@
             pointer-events: none;
         }
 
-        /* Retro glow */
+        /* Glow effects */
         .retro-glow { text-shadow: 0 0 2px rgba(212, 17, 50, 0.5); }
-        .green-glow { text-shadow: 0 0 2px rgba(15, 82, 15, 0.5); }
 
         /* Hide scrollbar */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Priority cards */
-        .priority-card-high {
-            transform: scale(1.02);
-            border-width: 2px;
-            border-color: #d41132;
-            box-shadow: 0 0 15px rgba(212, 17, 50, 0.4);
-        }
-        .priority-card-medium {
-            transform: scale(1.01);
-            border-width: 1.5px;
-            border-color: #990000;
-            box-shadow: 0 0 10px rgba(153, 0, 0, 0.3);
-        }
-        .priority-card-low {
-            transform: scale(0.98);
-            opacity: 0.85;
-        }
-        .priority-card-completed {
-            border-color: rgba(15, 82, 15, 0.4);
-        }
 
         /* Pending sync badge */
         .pending-badge {
@@ -158,6 +136,27 @@
             from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
+
+        /* Heatmap grid */
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 3px;
+        }
+        .heatmap-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7px;
+            font-family: monospace;
+            border-radius: 2px;
+            transition: transform 0.15s ease;
+        }
+        .heatmap-cell:hover {
+            transform: scale(1.4);
+            z-index: 5;
+        }
     </style>
 </head>
 <body>
@@ -194,38 +193,109 @@
         <div class="p-5 pb-2">
             <div class="flex items-center justify-between">
                 <h2 class="text-white tracking-tight text-2xl font-bold leading-tight uppercase font-display retro-glow">
-                    Directivas <br><span class="text-primary">Del Sistema</span>
+                    Reviews <br><span class="text-primary">Semanales</span>
                 </h2>
-                <span class="material-symbols-outlined text-primary text-3xl opacity-80">target</span>
+                <span class="material-symbols-outlined text-primary text-3xl opacity-80">monitoring</span>
             </div>
-            <p class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// ANNUAL PROGRESS TRACKING ///</p>
+            <p class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// PURITY TRACKING SYSTEM ///</p>
         </div>
 
         <!-- === LOADING STATE === -->
         <div id="loading-state" class="flex-1 flex items-center justify-center py-20">
-            <div class="text-secondary font-mono text-sm animate-pulse">/// LOADING DIRECTIVES ///</div>
+            <div class="text-secondary font-mono text-sm animate-pulse">/// QUERYING IMPERIAL DATA ///</div>
         </div>
 
         <!-- === ERROR STATE === -->
         <div id="error-state" class="flex-1 flex-col items-center justify-center gap-4 p-4 py-20 hidden">
-            <p class="text-primary font-mono text-sm">/// CONNECTION ERROR ///</p>
-            <button onclick="cargarDirectivas()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">
-                RETRY
+            <p class="text-primary font-mono text-sm">/// DATA CORRUPTION DETECTED ///</p>
+            <button onclick="cargarReviews()" class="bg-primary text-white px-4 py-2 rounded-sm text-sm font-bold hover:bg-primary-dark transition-colors">
+                RETRY NOOSPHERIC LINK
             </button>
         </div>
 
         <!-- === MAIN CONTENT === -->
         <div id="main-content" class="hidden flex-1 overflow-y-auto pb-24">
-            <div id="directivas-list" class="px-4 space-y-4 mt-2">
-                <!-- Directivas se insertan aquí -->
+
+            <!-- Year Selector -->
+            <div class="px-5 pt-2 pb-1">
+                <div class="flex items-center gap-2">
+                    <button id="btn-2025" onclick="cambiarAno(2025)" class="px-3 py-1.5 text-[10px] font-bold font-mono uppercase tracking-widest border transition-all bg-surface-dark border-[#332224] text-gray-500">
+                        Aquila 2025
+                    </button>
+                    <button id="btn-2026" onclick="cambiarAno(2026)" class="px-3 py-1.5 text-[10px] font-bold font-mono uppercase tracking-widest border transition-all bg-primary-dark/30 border-primary/50 text-primary">
+                        Hipparion 2026
+                    </button>
+                </div>
             </div>
 
-            <!-- Botón Nueva Directiva -->
-            <div class="px-4 mt-4">
-                <button class="w-full py-3 bg-[#1e1617] border border-secondary/30 text-secondary text-xs font-bold uppercase tracking-widest hover:bg-[#261e1f] hover:border-secondary transition-all flex items-center justify-center gap-2 group">
-                    <span class="material-symbols-outlined text-base group-hover:rotate-90 transition-transform">add</span>
-                    New Directive
-                </button>
+            <!-- Summary Stats -->
+            <div class="px-4 pt-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Pureza Promedio -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">Pureza Prom.</p>
+                        <p id="stat-pureza" class="text-2xl font-bold font-mono text-gray-500">0%</p>
+                        <p id="stat-pureza-nivel" class="text-[8px] font-mono text-gray-600 uppercase tracking-widest mt-0.5">---</p>
+                    </div>
+                    <!-- XP Total -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">XP Total</p>
+                        <p id="stat-xp" class="text-2xl font-bold font-mono text-secondary">0</p>
+                    </div>
+                    <!-- Dias Perfectos -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">D&iacute;as Perfectos</p>
+                        <p id="stat-perfectos" class="text-2xl font-bold font-mono text-green-500">0</p>
+                    </div>
+                    <!-- Semanas Trackeadas -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">Semanas</p>
+                        <p id="stat-semanas" class="text-2xl font-bold font-mono text-secondary">0<span class="text-sm text-gray-600">/52</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Annual Heatmap -->
+            <div class="px-4 pt-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="material-symbols-outlined text-primary text-sm">grid_view</span>
+                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Heatmap Anual</span>
+                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                </div>
+                <div id="heatmap" class="heatmap-grid p-2 bg-surface-dark border border-[#332224]">
+                    <!-- Rendered by JS -->
+                </div>
+                <div class="flex items-center gap-4 mt-2 px-1">
+                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-[#1a1718] border border-[#252020]"></div><span class="text-[8px] font-mono text-gray-600">Sin datos</span></div>
+                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-red-900"></div><span class="text-[8px] font-mono text-gray-600">Corrompido</span></div>
+                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-amber-700"></div><span class="text-[8px] font-mono text-gray-600">Equilibrado</span></div>
+                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-green-700"></div><span class="text-[8px] font-mono text-gray-600">Puro</span></div>
+                </div>
+            </div>
+
+            <!-- Reviews List -->
+            <div class="px-4 pt-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-primary text-sm">view_timeline</span>
+                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Reviews Semanales</span>
+                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                </div>
+                <div id="reviews-list" class="space-y-3 pb-4">
+                    <!-- Rendered by JS -->
+                </div>
+                <!-- Empty state -->
+                <div id="empty-reviews" class="hidden py-8 text-center">
+                    <span class="material-symbols-outlined text-4xl text-gray-700 mb-2 block">search_off</span>
+                    <p class="text-gray-500 text-sm font-mono uppercase">/// No hay reviews para este sistema ///</p>
+                </div>
             </div>
         </div>
 
@@ -250,13 +320,6 @@
             </div>
         </div>
 
-        <!-- === FAB === -->
-        <div class="fixed bottom-20 right-6 z-50">
-            <button class="flex items-center justify-center size-12 rounded-full bg-[#1e1617] text-secondary shadow-[0_0_15px_rgba(197,160,101,0.2)] border border-secondary/50 active:scale-95 transition-all group hover:bg-secondary hover:text-[#1e1617]">
-                <span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">edit_document</span>
-            </button>
-        </div>
-
         <!-- === BOTTOM NAVIGATION === -->
         <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
@@ -275,10 +338,9 @@
                 <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
             </a>
-            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
-                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
             </a>
             <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
@@ -288,16 +350,17 @@
                 <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
             </a>
-            <a href="inquisicion.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+            <a href="inquisicion.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
                 <span class="material-symbols-outlined text-2xl mb-0.5">analytics</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Inquis.</span>
+                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
             </a>
         </nav>
     </div>
 
     <script src="db.js"></script>
     <script src="sync-utils.js"></script>
-    <script src="directivas.js"></script>
+    <script src="inquisicion.js"></script>
 <!-- Service Worker Registration -->
 <script>
     if ('serviceWorker' in navigator) {
