@@ -149,6 +149,9 @@ let currentView = '3d'; // '3d' | 'linear'
 let zoomState = 'zoomed'; // 'zoomed' (planet closeup) | 'overview' (system view)
 let isAnimatingCamera = false;
 let firstLoad = true;
+let lastFrameTime = 0;
+let zoomedPlanetIndex = -1;
+let shipPlanetIndex = -1;
 
 // Three.js objects
 let scene, camera, renderer, controls;
@@ -615,7 +618,10 @@ function createPlanets(planetasData) {
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, 0, z);
-        mesh.userData = { planeta, index };
+        // Store orbital params for animation
+        const orbitSpeed = 0.02 + (1 / (radius * 0.6)) * 0.03; // inner = faster
+        const spinSpeed = 0.3 + seededRandom(index * 11 + 3) * 0.5;
+        mesh.userData = { planeta, index, orbitRadius: radius, orbitAngle: angle, orbitSpeed, spinSpeed };
 
         // Golden ring for current month
         if (planeta.numeroMes === currentMonth && selectedYear === currentYear) {
@@ -626,6 +632,7 @@ function createPlanets(planetasData) {
             mesh.add(ring);
 
             // Imperial Ship near current planet (loaded from GLB)
+            shipPlanetIndex = index;
             loadImperialShip(x, z, size);
         }
 
@@ -769,6 +776,7 @@ function zoomToPlanet(planetIndex) {
         z: planetPos.z
     };
 
+    zoomedPlanetIndex = planetIndex;
     animateCamera(targetCamPos, targetLookAt, 800, () => {
         zoomState = 'zoomed';
         controls.autoRotate = false;
@@ -781,6 +789,7 @@ function zoomToOverview() {
 
     hideSummaryPanel();
 
+    zoomedPlanetIndex = -1;
     animateCamera(OVERVIEW_POS, OVERVIEW_TARGET, 800, () => {
         zoomState = 'overview';
         controls.autoRotate = true;
@@ -933,19 +942,98 @@ function updateLabels() {
 
 function animate() {
     animationId = requestAnimationFrame(animate);
+
+    const now = performance.now();
+    const delta = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.1) : 0.016;
+    lastFrameTime = now;
+
     controls.update();
 
     // Update shader sun effect (perlin cubemap + glow + rays)
     updateSunEffect();
 
-    // Imperial ship subtle hover animation (very gentle)
-    if (imperialShip) {
-        imperialShip.position.y = 0.3 + Math.sin(Date.now() * 0.0008) * 0.015;
-        imperialShip.rotation.z = Math.sin(Date.now() * 0.0006) * 0.008;
+    // Animate planet orbits and self-rotation
+    updatePlanetOrbits(delta);
+
+    // Update route line to follow planets
+    updateRouteLine();
+
+    // Imperial ship follows its planet + subtle hover
+    updateShipFollow(delta);
+
+    // If zoomed, camera follows the orbiting planet
+    if (zoomState === 'zoomed' && zoomedPlanetIndex >= 0 && !isAnimatingCamera) {
+        const mesh = planetMeshes[zoomedPlanetIndex];
+        if (mesh) {
+            const offset = camera.position.clone().sub(controls.target);
+            controls.target.copy(mesh.position);
+            camera.position.copy(mesh.position).add(offset);
+        }
     }
 
     renderer.render(scene, camera);
     updateLabels();
+}
+
+/**
+ * Update planet orbital movement and self-rotation
+ */
+function updatePlanetOrbits(delta) {
+    for (const mesh of planetMeshes) {
+        const { orbitRadius, orbitAngle, orbitSpeed, spinSpeed } = mesh.userData;
+
+        // Update orbital angle
+        mesh.userData.orbitAngle = orbitAngle + orbitSpeed * delta;
+
+        // Recompute position on orbit
+        mesh.position.x = Math.cos(mesh.userData.orbitAngle) * orbitRadius;
+        mesh.position.z = Math.sin(mesh.userData.orbitAngle) * orbitRadius;
+
+        // Self-rotation (spin on Y axis)
+        mesh.rotation.y += spinSpeed * delta;
+    }
+}
+
+/**
+ * Update dashed route line to match current planet positions
+ */
+function updateRouteLine() {
+    if (!routeLine || planetMeshes.length < 2) return;
+
+    const positions = routeLine.geometry.attributes.position;
+    for (let i = 0; i < planetMeshes.length && i < positions.count; i++) {
+        positions.setXYZ(i, planetMeshes[i].position.x, 0.02, planetMeshes[i].position.z);
+    }
+    positions.needsUpdate = true;
+    routeLine.computeLineDistances();
+}
+
+/**
+ * Imperial ship follows its planet with subtle hover
+ */
+function updateShipFollow(delta) {
+    if (!imperialShip || shipPlanetIndex < 0 || !planetMeshes[shipPlanetIndex]) return;
+
+    const mesh = planetMeshes[shipPlanetIndex];
+    const px = mesh.position.x;
+    const pz = mesh.position.z;
+
+    // Get planet size from geometry
+    const size = mesh.geometry.parameters?.radius || 0.3;
+
+    // Position relative to planet's orbital direction
+    const len = Math.sqrt(px * px + pz * pz) || 1;
+    const dirX = px / len;
+    const dirZ = pz / len;
+    const perpX = -dirZ;
+    const perpZ = dirX;
+    const gap = size + 0.35;
+
+    imperialShip.position.x = px + perpX * gap;
+    imperialShip.position.y = 0.3 + Math.sin(Date.now() * 0.0008) * 0.015;
+    imperialShip.position.z = pz + perpZ * gap;
+    imperialShip.rotation.z = Math.sin(Date.now() * 0.0006) * 0.008;
+    imperialShip.lookAt(0, 0.1, 0);
 }
 
 function stopAnimation() {
