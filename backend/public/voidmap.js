@@ -242,8 +242,8 @@ function initThreeScene() {
     const container = document.getElementById('three-container');
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     // Scene
     scene = new THREE.Scene();
@@ -929,10 +929,9 @@ function navigateToPlanet(planeta) {
 }
 
 function onResize() {
-    const container = document.getElementById('three-container');
-    if (!container || !renderer) return;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    if (!renderer) return;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);

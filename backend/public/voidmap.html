@@ -143,21 +143,22 @@
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
 
-        /* VoidMap specific styles */
-        #three-container { width: 100%; height: 55vh; position: relative; touch-action: none; }
+        /* VoidMap specific styles - immersive fullscreen */
+        #three-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; touch-action: none; }
+        #planet-labels { position: fixed !important; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; overflow: hidden; }
         .planet-label { position: absolute; transform: translate(-50%, -100%); pointer-events: auto; cursor: pointer; text-align: center; transition: opacity 0.2s; }
         .year-pill { padding: 4px 12px; font-size: 10px; font-family: monospace; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid #332224; color: #888; background: transparent; cursor: pointer; transition: all 0.2s; }
         .year-pill-active { border-color: #c5a065; color: #c5a065; background: rgba(197,160,101,0.1); }
     </style>
 </head>
 <body>
-    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+    <div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto border-x border-[#332224]/30 z-10">
 
         <!-- Scanlines overlay -->
         <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
 
         <!-- === HEADER === -->
-        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+        <header class="flex items-center bg-[#221618]/60 backdrop-blur-sm border-b border-[#332224]/40 p-4 pb-3 justify-between sticky top-0 z-40">
             <div class="flex shrink-0 items-center gap-3">
                 <div class="relative">
                     <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
@@ -181,20 +182,20 @@
         </header>
 
         <!-- === TITLE === -->
-        <div class="p-5 pb-2">
+        <div class="px-5 pt-3 pb-1">
             <div class="flex items-center justify-between">
                 <div>
-                    <h2 class="text-white tracking-tight text-2xl font-bold leading-tight uppercase font-display retro-glow">
-                        Void<br><span class="text-primary">Map</span>
+                    <h2 class="text-white tracking-tight text-xl font-bold leading-tight uppercase font-display retro-glow">
+                        Void <span class="text-primary">Map</span>
                     </h2>
-                    <p id="system-subtitle" class="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">/// SISTEMA HIPPARION ///</p>
+                    <p id="system-subtitle" class="text-gray-400 text-[10px] mt-1 font-mono uppercase tracking-widest">/// SISTEMA HIPPARION ///</p>
                 </div>
-                <span class="material-symbols-outlined text-primary text-3xl opacity-80">public</span>
+                <span class="material-symbols-outlined text-primary text-2xl opacity-60">public</span>
             </div>
         </div>
 
         <!-- === CONTROLS BAR === -->
-        <div class="px-5 mb-3 flex justify-between items-center">
+        <div class="px-5 mb-2 flex justify-between items-center">
             <div id="year-switcher" class="flex gap-2">
                 <button class="year-pill" data-year="2025">2025</button>
                 <button class="year-pill year-pill-active" data-year="2026">2026</button>
@@ -216,18 +217,18 @@
         </div>
 
         <!-- === 3D VIEW === -->
-        <div id="view-3d" class="relative">
+        <div id="view-3d" class="relative flex-1">
             <div id="three-container"></div>
-            <div id="planet-labels" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+            <div id="planet-labels"></div>
 
             <!-- ZOOM OUT BUTTON (visible only when zoomed in) -->
-            <button id="btn-zoom-out" class="hidden absolute top-3 left-3 z-30 flex items-center gap-1 bg-[#1a1718]/90 border border-[#332224] text-gray-400 text-[10px] font-mono px-3 py-1.5 hover:border-secondary/50 hover:text-secondary transition-all backdrop-blur-sm">
+            <button id="btn-zoom-out" class="hidden fixed top-16 left-3 z-30 flex items-center gap-1 bg-[#1a1718]/80 border border-[#332224] text-gray-400 text-[10px] font-mono px-3 py-1.5 hover:border-secondary/50 hover:text-secondary transition-all backdrop-blur-sm">
                 <span class="material-symbols-outlined text-sm">zoom_out_map</span>
                 SYSTEM VIEW
             </button>
 
             <!-- PLANET SUMMARY PANEL (visible only when zoomed in) -->
-            <div id="planet-summary" class="hidden absolute bottom-3 left-3 right-3 z-30 bg-[#1a1718]/95 border border-secondary/30 p-4 backdrop-blur-sm">
+            <div id="planet-summary" class="hidden fixed bottom-20 left-3 right-3 max-w-md mx-auto z-30 bg-[#1a1718]/90 border border-secondary/30 p-4 backdrop-blur-md">
                 <div class="flex items-center justify-between mb-2">
                     <div>
                         <div class="text-[9px] text-secondary font-mono tracking-widest uppercase">Current Position</div>
@@ -257,10 +258,10 @@
         </div>
 
         <!-- === LINEAR VIEW === -->
-        <div id="view-linear" class="hidden px-4 pb-24 space-y-2 mt-2"></div>
+        <div id="view-linear" class="hidden flex-1 overflow-y-auto px-4 pb-24 space-y-2 pt-2 bg-[#0f0f10]/80 backdrop-blur-sm"></div>
 
         <!-- === LOADING STATE === -->
-        <div id="loading-state" class="flex-1 flex items-center justify-center py-20">
+        <div id="loading-state" class="flex-1 flex items-center justify-center">
             <div class="text-secondary font-mono text-sm animate-pulse">/// SCANNING VOID ///</div>
         </div>
 
@@ -271,7 +272,7 @@
         </div>
 
         <!-- === BOTTOM NAVIGATION === -->
-        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011]/75 border-t border-[#332224]/40 h-16 flex items-center justify-around z-40 backdrop-blur-md">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
