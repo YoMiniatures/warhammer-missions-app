@@ -390,7 +390,7 @@ function setupSunEffect() {
     const glowMat = new THREE.ShaderMaterial({
         vertexShader: GLOW_VS, fragmentShader: GLOW_FS,
         transparent: true, premultipliedAlpha: true,
-        depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+        depthWrite: false, depthTest: true, side: THREE.DoubleSide,
         uniforms: {
             uViewProjection: { value: new THREE.Matrix4() }, uRadius: { value: .35 },
             uTint: { value: .4 }, uBrightness: { value: 1.06 }, uFalloffColor: { value: .5 },
