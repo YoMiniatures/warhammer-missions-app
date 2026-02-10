@@ -501,7 +501,6 @@ function updateSunEffect() {
 const textureLoader = new THREE.TextureLoader();
 const textureCache = {};
 let orbitLines = [];
-let routeLine = null;
 
 // Seeded random for consistent planet positioning across reloads
 function seededRandom(seed) {
@@ -531,19 +530,10 @@ function createPlanets(planetasData) {
         o.material.dispose();
     });
     orbitLines = [];
-    if (routeLine) {
-        scene.remove(routeLine);
-        routeLine.geometry.dispose();
-        routeLine.material.dispose();
-        routeLine = null;
-    }
 
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
     const maxMissions = Math.max(...planetasData.map(p => p.totalMisiones || 1), 1);
-
-    // Collect positions for the route line
-    const routePoints = [];
 
     planetasData.forEach((planeta, index) => {
         // Alternating radii with slight jitter
@@ -558,7 +548,6 @@ function createPlanets(planetasData) {
 
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
-        routePoints.push(new THREE.Vector3(x, 0.02, z));
 
         // Draw orbit line (thin transparent gray circle)
         const orbitGeo = new THREE.RingGeometry(radius - 0.015, radius + 0.015, 96);
@@ -618,9 +607,11 @@ function createPlanets(planetasData) {
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, 0, z);
-        // Store orbital params for animation
-        const orbitSpeed = 0.02 + (1 / (radius * 0.6)) * 0.03; // inner = faster
-        const spinSpeed = 0.3 + seededRandom(index * 11 + 3) * 0.5;
+        // Kepler-accurate orbital speed: v ∝ 1/√r (closer to sun = faster)
+        // Base factor is very slow for subtle, realistic feel
+        const orbitSpeed = 0.012 / Math.sqrt(radius) + seededRandom(index * 17 + 1) * 0.002;
+        // Spin: smaller planets spin a bit faster, with per-planet variance
+        const spinSpeed = 0.04 + seededRandom(index * 11 + 3) * 0.08;
         mesh.userData = { planeta, index, orbitRadius: radius, orbitAngle: angle, orbitSpeed, spinSpeed };
 
         // Golden ring for current month
@@ -640,21 +631,6 @@ function createPlanets(planetasData) {
         planetMeshes.push(mesh);
     });
 
-    // Dashed route line connecting planets in order (auspex green)
-    if (routePoints.length > 1) {
-        const routeGeo = new THREE.BufferGeometry().setFromPoints(routePoints);
-        const routeMat = new THREE.LineDashedMaterial({
-            color: 0x1A821A,
-            transparent: true,
-            opacity: 0.35,
-            dashSize: 0.15,
-            gapSize: 0.1,
-            linewidth: 1
-        });
-        routeLine = new THREE.Line(routeGeo, routeMat);
-        routeLine.computeLineDistances();
-        scene.add(routeLine);
-    }
 }
 
 // ==========================================
@@ -955,9 +931,6 @@ function animate() {
     // Animate planet orbits and self-rotation
     updatePlanetOrbits(delta);
 
-    // Update route line to follow planets
-    updateRouteLine();
-
     // Imperial ship follows its planet + subtle hover
     updateShipFollow(delta);
 
@@ -992,20 +965,6 @@ function updatePlanetOrbits(delta) {
         // Self-rotation (spin on Y axis)
         mesh.rotation.y += spinSpeed * delta;
     }
-}
-
-/**
- * Update dashed route line to match current planet positions
- */
-function updateRouteLine() {
-    if (!routeLine || planetMeshes.length < 2) return;
-
-    const positions = routeLine.geometry.attributes.position;
-    for (let i = 0; i < planetMeshes.length && i < positions.count; i++) {
-        positions.setXYZ(i, planetMeshes[i].position.x, 0.02, planetMeshes[i].position.z);
-    }
-    positions.needsUpdate = true;
-    routeLine.computeLineDistances();
 }
 
 /**
