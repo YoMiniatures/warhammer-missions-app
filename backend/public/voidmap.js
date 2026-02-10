@@ -610,8 +610,9 @@ function createPlanets(planetasData) {
         // Kepler's 3rd law: angular velocity ω ∝ r^(-3/2) — steep falloff for far planets
         // r=2.5 → ~0.006 rad/s (orbit ~17min), r=7.0 → ~0.001 rad/s (orbit ~80min)
         const orbitSpeed = 0.025 * Math.pow(radius, -1.5) + seededRandom(index * 17 + 1) * 0.001;
-        // Spin: wide variance per planet
-        const spinSpeed = 0.03 + seededRandom(index * 11 + 3) * 0.12;
+        // Spin: highly varied like real solar system (Jupiter 10h vs Venus 243d)
+        const spinRand = seededRandom(index * 11 + 3);
+        const spinSpeed = 0.01 + spinRand * spinRand * 0.25; // quadratic curve: most slow, few fast
         mesh.userData = { planeta, index, orbitRadius: radius, orbitAngle: angle, orbitSpeed, spinSpeed };
 
         // Golden ring for current month
