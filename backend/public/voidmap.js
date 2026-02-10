@@ -904,15 +904,12 @@ function onPlanetClick(event) {
 
     if (intersects.length > 0) {
         const mesh = intersects[0].object;
-        const planeta = mesh.userData.planeta;
 
         if (zoomState === 'overview') {
             // Zoom to the clicked planet
             zoomToPlanet(mesh.userData.index);
-        } else {
-            // Already zoomed - navigate to detail
-            navigateToPlanet(planeta);
         }
+        // When zoomed, navigation only via "Planet Detail" button in summary panel
     }
 }
 
