@@ -160,7 +160,7 @@ let imperialShip;
 let sunEffect = null;
 
 // Camera positions
-const OVERVIEW_POS = { x: 0, y: 8, z: 12 };
+const OVERVIEW_POS = { x: 0, y: 10, z: 14 };
 const OVERVIEW_TARGET = { x: 0, y: 0, z: 0 };
 
 // System name mapping
@@ -253,7 +253,7 @@ function initThreeScene() {
 
     // Camera
     camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
-    camera.position.set(0, 8, 12);
+    camera.position.set(0, 10, 14);
     camera.lookAt(0, 0, 0);
 
     // Renderer
@@ -295,12 +295,7 @@ function initThreeScene() {
     // Shader-based sun effect (central star)
     setupSunEffect();
 
-    // Orbit ring
-    const orbitGeometry = new THREE.RingGeometry(4.9, 5.1, 64);
-    const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0x332224, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
-    const orbitRing = new THREE.Mesh(orbitGeometry, orbitMaterial);
-    orbitRing.rotation.x = -Math.PI / 2;
-    scene.add(orbitRing);
+    // Orbit rings created per-planet in createPlanets()
 
     // Skybox sphere (space nebula background)
     createSkybox();
@@ -502,6 +497,13 @@ function updateSunEffect() {
 
 const textureLoader = new THREE.TextureLoader();
 const textureCache = {};
+let orbitLines = [];
+
+// Seeded random for consistent planet positioning across reloads
+function seededRandom(seed) {
+    const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+}
 
 function createPlanets(planetasData) {
     // Clear existing planets
@@ -512,15 +514,42 @@ function createPlanets(planetasData) {
     });
     planetMeshes = [];
 
+    // Clear existing orbit lines
+    orbitLines.forEach(o => {
+        scene.remove(o);
+        o.geometry.dispose();
+        o.material.dispose();
+    });
+    orbitLines = [];
+
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
     const maxMissions = Math.max(...planetasData.map(p => p.totalMisiones || 1), 1);
 
     planetasData.forEach((planeta, index) => {
-        const angle = (index / 12) * Math.PI * 2 - Math.PI / 2;
-        const radius = 5;
+        // Varied radius: inner planets closer, outer planets farther
+        const baseRadius = 2.2 + (index / 11) * 5.0;
+        const radiusJitter = (seededRandom(index * 3 + 7) - 0.5) * 0.6;
+        const radius = baseRadius + radiusJitter;
+
+        // Slight angular variance for realism
+        const baseAngle = (index / 12) * Math.PI * 2 - Math.PI / 2;
+        const angleJitter = (seededRandom(index * 5 + 13) - 0.5) * 0.25;
+        const angle = baseAngle + angleJitter;
+
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
+
+        // Draw orbit line (thin transparent gray circle)
+        const orbitGeo = new THREE.RingGeometry(radius - 0.02, radius + 0.02, 96);
+        const orbitMat = new THREE.MeshBasicMaterial({
+            color: 0x555555, side: THREE.DoubleSide,
+            transparent: true, opacity: 0.12
+        });
+        const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
+        orbitMesh.rotation.x = -Math.PI / 2;
+        scene.add(orbitMesh);
+        orbitLines.push(orbitMesh);
 
         // Size based on total missions
         const size = 0.2 + (planeta.totalMisiones / maxMissions) * 0.4;
