@@ -498,12 +498,19 @@ function updateSunEffect() {
 const textureLoader = new THREE.TextureLoader();
 const textureCache = {};
 let orbitLines = [];
+let routeLine = null;
 
 // Seeded random for consistent planet positioning across reloads
 function seededRandom(seed) {
     const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
     return x - Math.floor(x);
 }
+
+// Pre-computed radii: alternating inner/outer bands for organic layout
+const PLANET_RADII = [
+    3.8, 6.2, 2.8, 5.5, 4.2, 7.0,
+    3.0, 6.8, 4.8, 2.5, 5.8, 3.5
+];
 
 function createPlanets(planetasData) {
     // Clear existing planets
@@ -514,37 +521,47 @@ function createPlanets(planetasData) {
     });
     planetMeshes = [];
 
-    // Clear existing orbit lines
+    // Clear existing orbit lines and route
     orbitLines.forEach(o => {
         scene.remove(o);
         o.geometry.dispose();
         o.material.dispose();
     });
     orbitLines = [];
+    if (routeLine) {
+        scene.remove(routeLine);
+        routeLine.geometry.dispose();
+        routeLine.material.dispose();
+        routeLine = null;
+    }
 
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
     const maxMissions = Math.max(...planetasData.map(p => p.totalMisiones || 1), 1);
 
+    // Collect positions for the route line
+    const routePoints = [];
+
     planetasData.forEach((planeta, index) => {
-        // Varied radius: inner planets closer, outer planets farther
-        const baseRadius = 2.2 + (index / 11) * 5.0;
-        const radiusJitter = (seededRandom(index * 3 + 7) - 0.5) * 0.6;
+        // Alternating radii with slight jitter
+        const baseRadius = PLANET_RADII[index % 12];
+        const radiusJitter = (seededRandom(index * 3 + 7) - 0.5) * 0.4;
         const radius = baseRadius + radiusJitter;
 
-        // Slight angular variance for realism
+        // Even angular spacing with slight variance
         const baseAngle = (index / 12) * Math.PI * 2 - Math.PI / 2;
-        const angleJitter = (seededRandom(index * 5 + 13) - 0.5) * 0.25;
+        const angleJitter = (seededRandom(index * 5 + 13) - 0.5) * 0.3;
         const angle = baseAngle + angleJitter;
 
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
+        routePoints.push(new THREE.Vector3(x, 0.02, z));
 
         // Draw orbit line (thin transparent gray circle)
-        const orbitGeo = new THREE.RingGeometry(radius - 0.02, radius + 0.02, 96);
+        const orbitGeo = new THREE.RingGeometry(radius - 0.015, radius + 0.015, 96);
         const orbitMat = new THREE.MeshBasicMaterial({
             color: 0x555555, side: THREE.DoubleSide,
-            transparent: true, opacity: 0.12
+            transparent: true, opacity: 0.1
         });
         const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
         orbitMesh.rotation.x = -Math.PI / 2;
@@ -615,6 +632,22 @@ function createPlanets(planetasData) {
         scene.add(mesh);
         planetMeshes.push(mesh);
     });
+
+    // Dashed route line connecting planets in order (auspex green)
+    if (routePoints.length > 1) {
+        const routeGeo = new THREE.BufferGeometry().setFromPoints(routePoints);
+        const routeMat = new THREE.LineDashedMaterial({
+            color: 0x1A821A,
+            transparent: true,
+            opacity: 0.35,
+            dashSize: 0.15,
+            gapSize: 0.1,
+            linewidth: 1
+        });
+        routeLine = new THREE.Line(routeGeo, routeMat);
+        routeLine.computeLineDistances();
+        scene.add(routeLine);
+    }
 }
 
 // ==========================================
