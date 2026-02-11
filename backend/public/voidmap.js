@@ -1035,7 +1035,93 @@ function onPlanetClick(event) {
 }
 
 function navigateToPlanet(planeta) {
-    window.location.href = `planeta-detalle.html?id=${encodeURIComponent(planeta.id)}&año=${planeta.año}`;
+    // Desktop: cargar en sidebar
+    if (window.innerWidth >= 1024) {
+        openPlanetSidebar(planeta.id, planeta.año);
+    } else {
+        // Mobile: navegación normal
+        window.location.href = `planeta-detalle.html?id=${encodeURIComponent(planeta.id)}&año=${planeta.año}`;
+    }
+}
+
+/**
+ * Open planet detail in desktop sidebar (desktop only)
+ */
+async function openPlanetSidebar(planetaId, año) {
+    const sidebar = document.getElementById('desktop-sidebar');
+    const content = document.getElementById('sidebar-content');
+
+    if (!sidebar || !content) return;
+
+    // Show loading state
+    content.innerHTML = '<div class="flex items-center justify-center h-full min-h-screen"><span class="text-secondary font-mono text-sm animate-pulse">/// LOADING ///</span></div>';
+    sidebar.classList.add('open');
+
+    try {
+        // Fetch planeta-detalle.html
+        const response = await fetch(`planeta-detalle.html?id=${encodeURIComponent(planetaId)}&año=${año}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+
+        // Extract body content (skip nav/header)
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Try to find main content container
+        let mainContent = doc.querySelector('#main-content') ||
+                         doc.querySelector('main') ||
+                         doc.querySelector('.relative.flex.h-screen');
+
+        if (!mainContent) {
+            // Fallback: get all content between header and nav
+            const body = doc.body;
+            mainContent = document.createElement('div');
+            Array.from(body.children).forEach(child => {
+                if (!child.matches('header') && !child.matches('nav') && !child.matches('script')) {
+                    mainContent.appendChild(child.cloneNode(true));
+                }
+            });
+        }
+
+        content.innerHTML = mainContent.innerHTML;
+
+        // Re-execute inline scripts if any
+        const scripts = content.querySelectorAll('script');
+        scripts.forEach(oldScript => {
+            const newScript = document.createElement('script');
+            if (oldScript.src) {
+                newScript.src = oldScript.src;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+
+        console.log(`[Sidebar] Loaded planet detail: ${planetaId}`);
+
+    } catch (error) {
+        console.error('[Sidebar] Error loading planet detail:', error);
+        content.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full min-h-screen gap-4">
+                <p class="text-primary font-mono text-sm">/// ERROR LOADING PLANET ///</p>
+                <p class="text-gray-500 text-xs">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Close desktop sidebar
+ */
+function closePlanetSidebar() {
+    const sidebar = document.getElementById('desktop-sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('open');
+    }
 }
 
 function onResize() {
@@ -1313,3 +1399,11 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+// Desktop sidebar close handler
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebarCloseBtn = document.getElementById('sidebar-close');
+    if (sidebarCloseBtn) {
+        sidebarCloseBtn.addEventListener('click', closePlanetSidebar);
+    }
+});
