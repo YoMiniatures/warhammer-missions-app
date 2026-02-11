@@ -338,38 +338,41 @@
                 </div>
             </div>
 
-            <!-- Annual Heatmap -->
-            <div class="px-4 pt-4">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="material-symbols-outlined text-primary text-sm">grid_view</span>
-                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Heatmap Anual</span>
-                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+            <!-- Desktop: 2-column layout for heatmap + reviews -->
+            <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-4">
+                <!-- Annual Heatmap (left column) -->
+                <div class="px-4 pt-4 lg:px-0">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-primary text-sm">grid_view</span>
+                        <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Heatmap Anual</span>
+                        <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                    </div>
+                    <div id="heatmap" class="heatmap-grid p-2 bg-surface-dark border border-[#332224]">
+                        <!-- Rendered by JS -->
+                    </div>
+                    <div class="flex items-center gap-4 mt-2 px-1">
+                        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-[#1a1718] border border-[#252020]"></div><span class="text-[8px] font-mono text-gray-600">Sin datos</span></div>
+                        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-red-900"></div><span class="text-[8px] font-mono text-gray-600">Corrompido</span></div>
+                        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-amber-700"></div><span class="text-[8px] font-mono text-gray-600">Equilibrado</span></div>
+                        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-green-700"></div><span class="text-[8px] font-mono text-gray-600">Puro</span></div>
+                    </div>
                 </div>
-                <div id="heatmap" class="heatmap-grid p-2 bg-surface-dark border border-[#332224]">
-                    <!-- Rendered by JS -->
-                </div>
-                <div class="flex items-center gap-4 mt-2 px-1">
-                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-[#1a1718] border border-[#252020]"></div><span class="text-[8px] font-mono text-gray-600">Sin datos</span></div>
-                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-red-900"></div><span class="text-[8px] font-mono text-gray-600">Corrompido</span></div>
-                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-amber-700"></div><span class="text-[8px] font-mono text-gray-600">Equilibrado</span></div>
-                    <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-green-700"></div><span class="text-[8px] font-mono text-gray-600">Puro</span></div>
-                </div>
-            </div>
 
-            <!-- Reviews List -->
-            <div class="px-4 pt-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="material-symbols-outlined text-primary text-sm">view_timeline</span>
-                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Reviews Semanales</span>
-                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
-                </div>
-                <div id="reviews-list" class="space-y-3 pb-4">
-                    <!-- Rendered by JS -->
-                </div>
-                <!-- Empty state -->
-                <div id="empty-reviews" class="hidden py-8 text-center">
-                    <span class="material-symbols-outlined text-4xl text-gray-700 mb-2 block">search_off</span>
-                    <p class="text-gray-500 text-sm font-mono uppercase">/// No hay reviews para este sistema ///</p>
+                <!-- Reviews List (right column) -->
+                <div class="px-4 pt-5 lg:px-0 lg:pt-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-primary text-sm">view_timeline</span>
+                        <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Reviews Semanales</span>
+                        <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                    </div>
+                    <div id="reviews-list" class="space-y-3 pb-4">
+                        <!-- Rendered by JS -->
+                    </div>
+                    <!-- Empty state -->
+                    <div id="empty-reviews" class="hidden py-8 text-center">
+                        <span class="material-symbols-outlined text-4xl text-gray-700 mb-2 block">search_off</span>
+                        <p class="text-gray-500 text-sm font-mono uppercase">/// No hay reviews para este sistema ///</p>
+                    </div>
                 </div>
             </div>
         </div>
