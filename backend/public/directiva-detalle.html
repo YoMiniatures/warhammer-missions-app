@@ -236,9 +236,15 @@
             </div>
         </header>
 
+        <!-- === DESKTOP BACK BUTTON (hidden on mobile) === -->
+        <a href="directivas.html" class="hidden lg:flex items-center gap-2 fixed top-6 left-24 z-30 px-4 py-2 bg-[#1a1718] border border-[#332224] hover:border-primary/50 transition-colors group">
+            <span class="material-symbols-outlined text-gray-400 group-hover:text-primary">arrow_back</span>
+            <span class="text-gray-400 group-hover:text-primary text-sm font-mono uppercase tracking-wider">Volver</span>
+        </a>
+
         <!-- === TITLE SECTION === -->
-        <div class="px-5 pt-8 pb-4 relative">
-            <div class="absolute top-6 left-0 w-1 h-12 bg-primary shadow-[0_0_10px_#d41132]"></div>
+        <div class="px-5 pt-8 pb-4 relative lg:pt-20">
+            <div class="absolute top-6 left-0 w-1 h-12 bg-primary shadow-[0_0_10px_#d41132] lg:top-[72px]"></div>
             <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2 mb-1">
                     <span class="material-symbols-outlined text-primary text-lg">schema</span>
