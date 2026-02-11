@@ -457,32 +457,37 @@
         <!-- === CONTENIDO PRINCIPAL === -->
         <div id="main-content" class="hidden">
 
-            <!-- === MISIONES DEL DÍA === -->
-            <div class="mt-4">
-                <div class="flex items-center justify-between px-4 pb-2 pt-4 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary">warning</span>
-                        <h3 class="text-secondary text-sm font-bold leading-tight tracking-widest uppercase">/// MISIONES DEL DÍA ///</h3>
-                    </div>
-                    <span id="urgentes-count" class="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30">0</span>
-                </div>
-                <div id="misiones-urgentes" class="px-4 pt-2 space-y-1">
-                    <!-- Misiones urgentes se insertan aquí -->
-                </div>
-            </div>
+            <!-- Desktop: 2-column grid for urgentes + criterios -->
+            <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-6">
 
-            <!-- === CRITERIOS DE VICTORIA === -->
-            <div class="mt-4">
-                <div class="flex items-center justify-between px-4 pb-2 pt-2 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-secondary text-sm">military_tech</span>
-                        <h3 class="text-secondary text-xs font-bold leading-tight tracking-widest uppercase">/// CRITERIOS DE VICTORIA ///</h3>
+                <!-- === MISIONES DEL DÍA === -->
+                <div class="mt-4">
+                    <div class="flex items-center justify-between px-4 pb-2 pt-4 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent lg:px-0">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">warning</span>
+                            <h3 class="text-secondary text-sm font-bold leading-tight tracking-widest uppercase">/// MISIONES DEL DÍA ///</h3>
+                        </div>
+                        <span id="urgentes-count" class="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30">0</span>
                     </div>
-                    <span id="criterios-porcentaje" class="text-[9px] font-mono text-gray-500">0%</span>
+                    <div id="misiones-urgentes" class="px-4 pt-2 space-y-1 lg:px-0">
+                        <!-- Misiones urgentes se insertan aquí -->
+                    </div>
                 </div>
-                <div id="criterios-victoria" class="flex overflow-x-auto gap-3 px-4 py-3 pb-4 snap-x snap-mandatory hide-scrollbar">
-                    <!-- Criterios se insertan aquí -->
+
+                <!-- === CRITERIOS DE VICTORIA === -->
+                <div class="mt-4">
+                    <div class="flex items-center justify-between px-4 pb-2 pt-2 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent lg:px-0 lg:pt-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-secondary text-sm">military_tech</span>
+                            <h3 class="text-secondary text-xs font-bold leading-tight tracking-widest uppercase">/// CRITERIOS DE VICTORIA ///</h3>
+                        </div>
+                        <span id="criterios-porcentaje" class="text-[9px] font-mono text-gray-500">0%</span>
+                    </div>
+                    <div id="criterios-victoria" class="flex overflow-x-auto gap-3 px-4 py-3 pb-4 snap-x snap-mandatory hide-scrollbar lg:px-0 lg:flex-col lg:overflow-visible lg:snap-none">
+                        <!-- Criterios se insertan aquí -->
+                    </div>
                 </div>
+
             </div>
 
             <!-- === MISIONES OPCIONALES === -->
