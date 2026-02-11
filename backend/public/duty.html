@@ -207,7 +207,7 @@
 
         /* Desktop responsive layout */
         @media (min-width: 1024px) {
-            body { margin-left: 80px; }
+            /* Container handles margin-left via lg:ml-20 class */
         }
     </style>
 </head>
@@ -262,7 +262,7 @@
     </nav>
 
 
-    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224] lg:max-w-none lg:border-x-0 lg:shadow-none lg:mx-0">
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224] lg:max-w-none lg:border-x-0 lg:shadow-none lg:mx-0 lg:ml-20">
 
         <!-- Scanlines overlay -->
         <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
