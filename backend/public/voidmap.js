@@ -161,6 +161,7 @@ let animationId;
 let centralStar;
 let imperialShip;
 let sunEffect = null;
+let selectedPlanet = null; // Track currently selected planet for sidebar
 
 // Camera positions
 const OVERVIEW_POS = { x: 0, y: 10, z: 14 };
@@ -850,6 +851,15 @@ function showSummaryPanel(planeta) {
     const link = document.getElementById('summary-link');
     link.href = `planeta-detalle.html?id=${encodeURIComponent(planeta.id)}&año=${planeta.año}`;
 
+    // Desktop: interceptar click para abrir sidebar en lugar de navegar
+    link.onclick = (e) => {
+        if (window.innerWidth >= 1024) {
+            e.preventDefault();
+            navigateToPlanet(planeta);
+        }
+        // Mobile: dejar navegación normal (no preventDefault)
+    };
+
     panel.classList.remove('hidden');
 }
 
@@ -1037,6 +1047,7 @@ function onPlanetClick(event) {
 function navigateToPlanet(planeta) {
     // Desktop: cargar en sidebar
     if (window.innerWidth >= 1024) {
+        selectedPlanet = planeta; // Save selected planet for reopening panel
         openPlanetSidebar(planeta.id, planeta.año);
     } else {
         // Mobile: navegación normal
@@ -1057,51 +1068,110 @@ async function openPlanetSidebar(planetaId, año) {
     content.innerHTML = '<div class="flex items-center justify-center h-full min-h-screen"><span class="text-secondary font-mono text-sm animate-pulse">/// LOADING ///</span></div>';
     sidebar.classList.add('open');
 
+    // Hide planet summary panel when sidebar opens
+    hideSummaryPanel();
+
     try {
-        // Fetch planeta-detalle.html
-        const response = await fetch(`planeta-detalle.html?id=${encodeURIComponent(planetaId)}&año=${año}`);
+        // Fetch planet data from API
+        const response = await fetch(`/api/planetas/${encodeURIComponent(planetaId)}?año=${año}`);
 
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
 
-        const html = await response.text();
+        const data = await response.json();
 
-        // Extract body content (skip nav/header)
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-
-        // Try to find main content container
-        let mainContent = doc.querySelector('#main-content') ||
-                         doc.querySelector('main') ||
-                         doc.querySelector('.relative.flex.h-screen');
-
-        if (!mainContent) {
-            // Fallback: get all content between header and nav
-            const body = doc.body;
-            mainContent = document.createElement('div');
-            Array.from(body.children).forEach(child => {
-                if (!child.matches('header') && !child.matches('nav') && !child.matches('script')) {
-                    mainContent.appendChild(child.cloneNode(true));
-                }
-            });
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load planet');
         }
 
-        content.innerHTML = mainContent.innerHTML;
+        const planeta = data.planeta;
+        const misiones = planeta.misiones || [];
+        const stats = planeta.stats || {};
 
-        // Re-execute inline scripts if any
-        const scripts = content.querySelectorAll('script');
-        scripts.forEach(oldScript => {
-            const newScript = document.createElement('script');
-            if (oldScript.src) {
-                newScript.src = oldScript.src;
-            } else {
-                newScript.textContent = oldScript.textContent;
-            }
-            oldScript.parentNode.replaceChild(newScript, oldScript);
-        });
+        // Build sidebar content HTML
+        const progreso = planeta.progreso || 0;
+        const totalMisiones = misiones.length;
+        const completadas = stats.totalCompleted || 0;
 
-        console.log(`[Sidebar] Loaded planet detail: ${planetaId}`);
+        content.innerHTML = `
+            <!-- Planet Header -->
+            <div class="mb-6 pb-6 border-b border-[#332224]">
+                <h1 class="text-2xl font-bold text-secondary mb-2">${planeta.nombre}</h1>
+                <p class="text-gray-400 text-sm mb-4">${planeta.mes} ${planeta.año}</p>
+
+                <!-- Progress Stats -->
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-[#1a1718] border border-[#332224] p-3 rounded">
+                        <div class="text-xs text-gray-500 mb-1">CONQUERED</div>
+                        <div class="text-xl font-bold text-secondary">${progreso}%</div>
+                    </div>
+                    <div class="bg-[#1a1718] border border-[#332224] p-3 rounded">
+                        <div class="text-xs text-gray-500 mb-1">MISSIONS</div>
+                        <div class="text-xl font-bold text-secondary">${completadas}/${totalMisiones}</div>
+                    </div>
+                    <div class="bg-[#1a1718] border border-[#332224] p-3 rounded">
+                        <div class="text-xs text-gray-500 mb-1">XP EARNED</div>
+                        <div class="text-xl font-bold text-green-500">${stats.xpEarned || 0}</div>
+                    </div>
+                    <div class="bg-[#1a1718] border border-[#332224] p-3 rounded">
+                        <div class="text-xs text-gray-500 mb-1">XP PENDING</div>
+                        <div class="text-xl font-bold text-yellow-500">${stats.xpPending || 0}</div>
+                    </div>
+                </div>
+
+                <!-- Estado Badge -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">STATUS:</span>
+                    <span class="px-3 py-1 rounded-sm text-xs font-mono ${getEstadoBadgeClass(planeta.estado)}">${planeta.estado.toUpperCase()}</span>
+                </div>
+
+                <!-- Change Estado Button -->
+                <button id="sidebar-change-estado" class="mt-3 w-full py-2 bg-[#1a1718] border border-[#332224] hover:border-primary/50 text-gray-400 hover:text-primary text-sm font-mono transition-colors rounded-sm">
+                    CHANGE STATUS
+                </button>
+            </div>
+
+            <!-- Objetivo del Mes -->
+            ${planeta.objetivoMes ? `
+            <div class="mb-6 p-4 bg-[#1a1718] border border-[#332224] rounded">
+                <h2 class="text-sm font-mono text-secondary mb-2">/// MONTHLY OBJECTIVE ///</h2>
+                <p class="text-gray-300 text-sm">${planeta.objetivoMes}</p>
+            </div>
+            ` : ''}
+
+            <!-- Missions List -->
+            <div>
+                <h2 class="text-sm font-mono text-secondary mb-3">/// MISSIONS (${totalMisiones}) ///</h2>
+                ${misiones.length === 0 ? `
+                    <p class="text-gray-500 text-sm italic">No missions scheduled</p>
+                ` : `
+                    <div class="space-y-2">
+                        ${misiones.map(mision => `
+                            <div class="p-3 bg-[#1a1718] border border-[#332224] rounded ${mision.completada ? 'opacity-50' : ''}">
+                                <div class="flex items-start justify-between gap-2 mb-1">
+                                    <h3 class="text-sm font-medium ${mision.completada ? 'line-through text-gray-500' : 'text-gray-200'}">${mision.nombre}</h3>
+                                    ${mision['criterio-victoria'] ? '<span class="material-symbols-outlined text-primary text-sm">stars</span>' : ''}
+                                </div>
+                                <div class="flex items-center gap-3 text-xs text-gray-500">
+                                    ${mision.deadline ? `<span>${formatDate(mision.deadline)}</span>` : ''}
+                                    ${mision['puntos-xp'] ? `<span class="text-secondary">${mision['puntos-xp']} XP</span>` : ''}
+                                    ${mision.prioridad ? `<span class="px-2 py-0.5 rounded-sm ${getPrioridadClass(mision.prioridad)}">${mision.prioridad}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+
+        // Add event listener for change estado button
+        const changeEstadoBtn = content.querySelector('#sidebar-change-estado');
+        if (changeEstadoBtn) {
+            changeEstadoBtn.addEventListener('click', () => showEstadoModal(planeta));
+        }
+
+        console.log(`[Sidebar] Loaded planet detail: ${planetaId}, ${completadas}/${totalMisiones} missions, ${progreso}% progress`);
 
     } catch (error) {
         console.error('[Sidebar] Error loading planet detail:', error);
@@ -1115,12 +1185,160 @@ async function openPlanetSidebar(planetaId, año) {
 }
 
 /**
+ * Get CSS class for estado badge
+ */
+function getEstadoBadgeClass(estado) {
+    switch (estado) {
+        case 'conquistado':
+            return 'bg-green-500/20 text-green-400 border border-green-500/30';
+        case 'en-conquista':
+            return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
+        case 'bloqueado':
+            return 'bg-red-500/20 text-red-400 border border-red-500/30';
+        default:
+            return 'bg-gray-500/20 text-gray-400 border border-gray-500/30';
+    }
+}
+
+/**
+ * Get CSS class for prioridad badge
+ */
+function getPrioridadClass(prioridad) {
+    switch (prioridad) {
+        case 'critica':
+            return 'bg-red-500/20 text-red-400';
+        case 'alta':
+            return 'bg-orange-500/20 text-orange-400';
+        case 'media':
+            return 'bg-yellow-500/20 text-yellow-400';
+        case 'baja':
+            return 'bg-blue-500/20 text-blue-400';
+        default:
+            return 'bg-gray-500/20 text-gray-400';
+    }
+}
+
+/**
+ * Format date string (YYYY-MM-DD -> MMM DD)
+ */
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr + 'T00:00:00');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}`;
+}
+
+/**
+ * Show modal to change planet estado
+ */
+async function showEstadoModal(planeta) {
+    const estados = [
+        { value: 'pendiente', label: 'Pendiente', color: 'gray' },
+        { value: 'en-conquista', label: 'En Conquista', color: 'yellow' },
+        { value: 'conquistado', label: 'Conquistado', color: 'green' },
+        { value: 'bloqueado', label: 'Bloqueado', color: 'red' }
+    ];
+
+    const modalHTML = `
+        <div id="estado-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-[#161011] border border-[#332224] rounded-lg p-6 max-w-md w-full">
+                <h2 class="text-xl font-bold text-secondary mb-4">Change Planet Status</h2>
+                <p class="text-gray-400 text-sm mb-6">${planeta.nombre}</p>
+
+                <div class="space-y-2 mb-6">
+                    ${estados.map(e => `
+                        <button class="estado-option w-full p-3 text-left border rounded transition-all ${
+                            planeta.estado === e.value
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-[#332224] bg-[#1a1718] text-gray-300 hover:border-gray-500'
+                        }" data-estado="${e.value}">
+                            <span class="font-mono">${e.label}</span>
+                        </button>
+                    `).join('')}
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="modal-cancel" class="flex-1 py-2 bg-[#1a1718] border border-[#332224] text-gray-400 hover:border-gray-500 transition-colors rounded">
+                        Cancel
+                    </button>
+                    <button id="modal-confirm" class="flex-1 py-2 bg-primary border border-primary text-white hover:bg-primary/80 transition-colors rounded">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    const modal = document.getElementById('estado-modal');
+    let selectedEstado = planeta.estado;
+
+    // Estado option clicks
+    modal.querySelectorAll('.estado-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectedEstado = btn.dataset.estado;
+            modal.querySelectorAll('.estado-option').forEach(b => {
+                b.classList.remove('border-primary', 'bg-primary/10', 'text-primary');
+                b.classList.add('border-[#332224]', 'bg-[#1a1718]', 'text-gray-300');
+            });
+            btn.classList.remove('border-[#332224]', 'bg-[#1a1718]', 'text-gray-300');
+            btn.classList.add('border-primary', 'bg-primary/10', 'text-primary');
+        });
+    });
+
+    // Cancel
+    modal.querySelector('#modal-cancel').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    // Confirm
+    modal.querySelector('#modal-confirm').addEventListener('click', async () => {
+        if (selectedEstado === planeta.estado) {
+            modal.remove();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/planetas/${planeta.id}/estado?año=${planeta.año}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: selectedEstado })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(`Planet status updated to: ${selectedEstado}`, 'success');
+                modal.remove();
+
+                // Reload sidebar with updated data
+                openPlanetSidebar(planeta.id, planeta.año);
+
+                // Reload planets in background to update 3D view
+                loadPlanets(currentYear);
+            } else {
+                showToast(`Error: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('[Estado] Error updating:', error);
+            showToast('Failed to update status', 'error');
+        }
+    });
+}
+
+/**
  * Close desktop sidebar
  */
 function closePlanetSidebar() {
     const sidebar = document.getElementById('desktop-sidebar');
     if (sidebar) {
         sidebar.classList.remove('open');
+    }
+
+    // Show planet summary panel again when sidebar closes (only if a planet is selected)
+    if (selectedPlanet) {
+        showSummaryPanel(selectedPlanet);
     }
 }
 
@@ -1158,7 +1376,9 @@ function renderLinearView() {
 
         return `
         <a href="planeta-detalle.html?id=${encodeURIComponent(p.id)}&año=${p.año}"
-           class="flex items-center gap-3 p-3 bg-[#1a1718] border ${isCurrentMonth ? 'border-secondary/50 shadow-[0_0_10px_rgba(197,160,101,0.1)]' : 'border-[#332224]'} hover:bg-[#261e1f] transition-colors">
+           class="planet-link flex items-center gap-3 p-3 bg-[#1a1718] border ${isCurrentMonth ? 'border-secondary/50 shadow-[0_0_10px_rgba(197,160,101,0.1)]' : 'border-[#332224]'} hover:bg-[#261e1f] transition-colors"
+           data-planet-id="${p.id}"
+           data-planet-año="${p.año}">
             <div class="flex-shrink-0 w-8 text-center">
                 <div class="text-secondary text-lg font-bold font-display">${String(p.numeroMes).padStart(2,'0')}</div>
                 <div class="text-[7px] text-gray-500 uppercase font-mono">${MESES[p.numeroMes-1].substring(0,3)}</div>
@@ -1179,6 +1399,21 @@ function renderLinearView() {
             <span class="material-symbols-outlined text-gray-600 text-lg">chevron_right</span>
         </a>`;
     }).join('');
+
+    // Desktop: interceptar clicks en planet links para abrir sidebar
+    if (window.innerWidth >= 1024) {
+        container.querySelectorAll('.planet-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const planetaId = link.dataset.planetId;
+                const año = parseInt(link.dataset.planetAño);
+                const planeta = planetas.find(p => p.id === planetaId && p.año === año);
+                if (planeta) {
+                    navigateToPlanet(planeta);
+                }
+            });
+        });
+    }
 }
 
 // ==========================================
