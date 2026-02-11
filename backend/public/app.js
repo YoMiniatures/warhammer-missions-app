@@ -595,7 +595,7 @@ function renderCriteriosVictoria() {
         const porcentaje = completada ? 100 : 0;
 
         return `
-            <div class="snap-start shrink-0 w-[45%] min-w-[150px] bg-[#1e1617] p-3 border rounded-sm relative overflow-hidden flex flex-col justify-between shadow-md
+            <div class="snap-start shrink-0 w-[45%] min-w-[150px] lg:w-full lg:min-w-0 bg-[#1e1617] p-3 border rounded-sm relative overflow-hidden flex flex-col justify-between shadow-md
                 ${completada ? 'border-green-500/30' : 'border-[#332224]'}"
                 data-mision-id="${m.id}">
                 <div class="flex justify-between items-start mb-2 relative z-10">
