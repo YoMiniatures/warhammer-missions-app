@@ -142,16 +142,91 @@
             background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(4px);
         }
+
+        /* Desktop nav styles */
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            color: #888;
+            transition: all 0.2s;
+            position: relative;
+            width: 100%;
+        }
+        .nav-item:hover { color: #c5a065; background: #1e1617; }
+        .nav-item.active { color: #d41132; }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #d41132;
+            box-shadow: 0 0 8px rgba(212,17,50,0.8);
+        }
+        .nav-label { font-size: 8px; text-transform: uppercase; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+    <!-- Desktop side nav (hidden on mobile) -->
+    <nav id="desktop-nav" class="hidden lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-20 lg:flex lg:flex-col lg:bg-[#161011]/90 lg:border-r lg:border-[#332224]/50 lg:backdrop-blur-md lg:z-50">
+        <!-- Logo/Brand top -->
+        <div class="flex items-center justify-center h-20 border-b border-[#332224]/40">
+            <span class="material-symbols-outlined text-secondary text-2xl">shield_person</span>
+        </div>
+
+        <!-- Nav items vertical -->
+        <div class="flex-1 flex flex-col items-center py-4 gap-2">
+            <a href="index.html" class="nav-item">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span class="nav-label">Bridge</span>
+            </a>
+            <a href="auspex.html" class="nav-item">
+                <span class="material-symbols-outlined">radar</span>
+                <span class="nav-label">Auspex</span>
+            </a>
+            <a href="duty.html" class="nav-item">
+                <span class="material-symbols-outlined">task_alt</span>
+                <span class="nav-label">Duty</span>
+            </a>
+            <a href="voidmap.html" class="nav-item">
+                <span class="material-symbols-outlined">public</span>
+                <span class="nav-label">Void</span>
+            </a>
+            <a href="directivas.html" class="nav-item">
+                <span class="material-symbols-outlined">target</span>
+                <span class="nav-label">Direct.</span>
+            </a>
+            <a href="cargo.html" class="nav-item active">
+                <span class="material-symbols-outlined">inventory_2</span>
+                <span class="nav-label">Cargo</span>
+            </a>
+            <a href="notas.html" class="nav-item">
+                <span class="material-symbols-outlined">auto_stories</span>
+                <span class="nav-label">Notas</span>
+            </a>
+            <a href="inquisicion.html" class="nav-item">
+                <span class="material-symbols-outlined">analytics</span>
+                <span class="nav-label">Inquis.</span>
+            </a>
+        </div>
+
+        <!-- Status bottom -->
+        <div class="flex items-center justify-center h-16 border-t border-[#332224]/40">
+            <div id="desktop-status-dot" class="size-3 bg-green-500 rounded-full"></div>
+        </div>
+    </nav>
+
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224] lg:max-w-none lg:border-x-0 lg:shadow-none lg:mx-0 lg:ml-20 lg:w-[calc(100vw-5rem)] lg:pr-6">
 
         <!-- Scanlines overlay -->
         <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
 
         <!-- === HEADER === -->
-        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+        <header class="lg:hidden flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
             <div class="flex shrink-0 items-center gap-3">
                 <div class="relative">
                     <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
@@ -264,7 +339,7 @@
         </div>
 
         <!-- === BOTTOM NAVIGATION === -->
-        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+        <nav class="lg:hidden fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
