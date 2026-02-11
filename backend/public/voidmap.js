@@ -1150,7 +1150,7 @@ async function openPlanetSidebar(planetaId, año) {
                         ${misiones.map(mision => `
                             <div class="p-3 bg-[#1a1718] border border-[#332224] rounded ${mision.completada ? 'opacity-50' : ''}">
                                 <div class="flex items-start justify-between gap-2 mb-1">
-                                    <h3 class="text-sm font-medium ${mision.completada ? 'line-through text-gray-500' : 'text-gray-200'}">${mision.nombre}</h3>
+                                    <h3 class="text-sm font-medium ${mision.completada ? 'line-through text-gray-500' : 'text-gray-200'}">${mision.titulo || mision.id}</h3>
                                     ${mision['criterio-victoria'] ? '<span class="material-symbols-outlined text-primary text-sm">stars</span>' : ''}
                                 </div>
                                 <div class="flex items-center gap-3 text-xs text-gray-500">
