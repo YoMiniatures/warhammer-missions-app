@@ -457,8 +457,8 @@
         <!-- === CONTENIDO PRINCIPAL === -->
         <div id="main-content" class="hidden">
 
-            <!-- Desktop: 2-column grid for urgentes + criterios -->
-            <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-6">
+            <!-- Desktop: 3-column grid for urgentes + criterios + opcionales -->
+            <div class="lg:grid lg:grid-cols-3 lg:gap-6 lg:px-6">
 
                 <!-- === MISIONES DEL DÍA === -->
                 <div class="mt-4">
@@ -488,20 +488,21 @@
                     </div>
                 </div>
 
-            </div>
-
-            <!-- === MISIONES OPCIONALES === -->
-            <div class="mt-2 mb-24">
-                <div class="flex items-center justify-between px-4 pb-2 pt-4 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-gray-500">article</span>
-                        <h3 class="text-gray-400 text-sm font-bold leading-tight tracking-widest uppercase">/// OPTIONAL DIRECTIVES ///</h3>
+                <!-- === MISIONES OPCIONALES === -->
+                <div class="mt-4 mb-24 lg:mb-0">
+                    <div class="flex items-center justify-between px-4 pb-2 pt-2 border-b border-[#332224] bg-gradient-to-r from-[#221618] to-transparent lg:px-0 lg:pt-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-gray-500">article</span>
+                            <h3 class="text-gray-400 text-sm font-bold leading-tight tracking-widest uppercase">/// OPTIONAL DIRECTIVES ///</h3>
+                        </div>
+                    </div>
+                    <div id="misiones-opcionales" class="px-4 pt-2 space-y-1 lg:px-0">
+                        <!-- Misiones opcionales se insertan aquí -->
                     </div>
                 </div>
-                <div id="misiones-opcionales" class="px-4 pt-2 space-y-1">
-                    <!-- Misiones opcionales se insertan aquí -->
-                </div>
+
             </div>
+
         </div>
 
         <!-- === PWA INSTALL BANNER === -->
