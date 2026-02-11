@@ -1,7 +1,7 @@
 // Warhammer Vault - Service Worker v15.0
 // Full offline support + Background Sync + Cache-First IndexedDB
 
-const CACHE_VERSION = 'v89';
+const CACHE_VERSION = 'v90';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
