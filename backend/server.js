@@ -2252,6 +2252,189 @@ app.get('/api/reviews', async (req, res) => {
   }
 });
 
+// POST /api/reviews/crear - Crear review semanal
+app.post('/api/reviews/crear', async (req, res) => {
+  try {
+    const { semana, año, fechaInicio, fechaFin, reflexion } = req.body;
+
+    // Validaciones
+    if (!semana || !año || !fechaInicio || !fechaFin) {
+      return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
+    }
+
+    if (semana < 1 || semana > 52) {
+      return res.status(400).json({ success: false, error: 'Semana debe estar entre 1 y 52' });
+    }
+
+    // Determinar ruta según año
+    const rutaReviews = getRutaReviews(año);
+    await fs.mkdir(rutaReviews, { recursive: true });
+
+    // Generar nombre de archivo
+    const semanaStr = semana.toString().padStart(2, '0');
+    const filename = `SEMANA-${semanaStr}-${año}.md`;
+    const filepath = path.join(rutaReviews, filename);
+
+    // Verificar si ya existe
+    try {
+      await fs.access(filepath);
+      return res.status(409).json({ success: false, error: 'Ya existe un review para esta semana' });
+    } catch {
+      // No existe, continuar
+    }
+
+    // Crear contenido del archivo
+    const frontmatter = {
+      'tipo': 'review-semanal',
+      'año': año,
+      'semana': semana,
+      'fecha-inicio': fechaInicio,
+      'fecha-fin': fechaFin,
+      'reflexion-semana': reflexion || '[Reflexión pendiente]',
+      'cssclasses': ['dashboard-view']
+    };
+
+    const body = `# 📊 REVIEW SEMANA ${semana} - ${año}
+
+> **Datos leídos directamente de las Incursiones Diarias**
+
+---
+
+## 📈 RESUMEN EJECUTIVO
+
+\`\`\`dataviewjs
+const CONFIG = eval(await dv.io.load("wh-config.js"));
+const page = dv.current();
+const semana = page.semana;
+const año = page.año;
+
+// Buscar incursiones - usar ruta dinamica segun año
+const sistemaNombre = año === 2025 ? "SISTEMA AQUILA" : "SISTEMA HIPPARION";
+const rutaIncursiones = \`"-⭐ HOME/Proyecto Warhammer/02 - CARTA ASTRAL (PLANNING & ESTRATEGIA)/00 - SISTEMAS/\${sistemaNombre} - AÑO \${año}/07 - INCURSIONES"\`;
+
+const incursiones = dv.pages(rutaIncursiones)
+    .where(p => p.tipo === "incursion-diaria" && p.semana === semana && p.año === año)
+    .sort(p => p.fecha, 'asc');
+
+if (incursiones.length === 0) {
+    dv.paragraph("⚠️ No se encontraron incursiones para la semana " + semana + ". Usa la webapp Duty para crear las incursiones diarias.");
+} else {
+    // Calcular estadísticas agregadas
+    let rutinasTotal = 0;
+    let diasPerfectos = 0;
+    let xpTotal = 0;
+    const purezas = [];
+
+    incursiones.forEach(inc => {
+        rutinasTotal += inc["rutinas-completadas"] || 0;
+        purezas.push(inc["pureza-dia"] || 0);
+        if (inc["dia-perfecto"]) diasPerfectos++;
+        xpTotal += inc["xp-total-dia"] || 0;
+    });
+
+    const numDias = incursiones.length;
+    const purezaPromedio = numDias > 0 ? Math.round(purezas.reduce((a,b) => a+b, 0) / numDias) : 0;
+    const maxRutinas = numDias * 19;
+
+    const nivelPureza = purezaPromedio >= 80 ? "PURO" : purezaPromedio >= 50 ? "EQUILIBRADO" : "CORRUPTO";
+    const colorPureza = purezaPromedio >= 80 ? "#10b981" : purezaPromedio >= 50 ? "#f59e0b" : "#ef4444";
+
+    const container = dv.el("div", "");
+    container.innerHTML = \`
+    <div class="stats-mini-grid">
+        <div class="stat-mini">
+            <div class="stat-label">Días Registrados</div>
+            <div class="stat-value">\${numDias}/7</div>
+        </div>
+        <div class="stat-mini">
+            <div class="stat-label">Días Perfectos</div>
+            <div class="stat-value">\${diasPerfectos}/\${numDias}</div>
+        </div>
+        <div class="stat-mini">
+            <div class="stat-label">Pureza Promedio</div>
+            <div class="stat-value" style="color: \${colorPureza}">\${purezaPromedio}%</div>
+            <div class="stat-sublabel">\${nivelPureza}</div>
+        </div>
+        <div class="stat-mini">
+            <div class="stat-label">Rutinas</div>
+            <div class="stat-value">\${rutinasTotal}/\${maxRutinas}</div>
+        </div>
+        <div class="stat-mini">
+            <div class="stat-label">XP Total</div>
+            <div class="stat-value" style="color: #C9A961">\${xpTotal}</div>
+        </div>
+    </div>
+    \`;
+}
+\`\`\`
+
+---
+
+## 📝 REFLEXIÓN SEMANAL
+
+\`\`\`dataviewjs
+const page = dv.current();
+const reflexion = page["reflexion-semana"] || "[Escribe tu reflexión aquí editando el frontmatter]";
+dv.el("blockquote", reflexion);
+\`\`\`
+
+---
+
+## 🔗 INCURSIONES DE ESTA SEMANA
+
+\`\`\`dataviewjs
+const page = dv.current();
+const semana = page.semana;
+const año = page.año;
+
+const sistemaNombre = año === 2025 ? "SISTEMA AQUILA" : "SISTEMA HIPPARION";
+const rutaIncursiones = \`"-⭐ HOME/Proyecto Warhammer/02 - CARTA ASTRAL (PLANNING & ESTRATEGIA)/00 - SISTEMAS/\${sistemaNombre} - AÑO \${año}/07 - INCURSIONES"\`;
+
+const incursiones = dv.pages(rutaIncursiones)
+    .where(p => p.tipo === "incursion-diaria" && p.semana === semana && p.año === año)
+    .sort(p => p.fecha, 'asc');
+
+if (incursiones.length === 0) {
+    dv.paragraph("No hay incursiones para esta semana.");
+} else {
+    dv.table(
+        ["Fecha", "Día", "Rutinas", "Pureza", "XP", "Perfecto"],
+        incursiones.map(inc => [
+            inc.file.link,
+            inc["dia-semana"] || "?",
+            \`\${inc["rutinas-completadas"] || 0}/19\`,
+            \`\${inc["pureza-dia"] || 0}%\`,
+            inc["xp-total-dia"] || 0,
+            inc["dia-perfecto"] ? "⭐" : ""
+        ])
+    );
+}
+\`\`\`
+
+---
+
+## 🧭 NAVEGACIÓN
+
+[[SEMANA-${(semana - 1).toString().padStart(2, '0')}-${año}|← Semana Anterior]] | [[09 - INQUISICIÓN (REVIEWS & CONTROL)|🏠 Dashboard]] | [[SEMANA-${(semana + 1).toString().padStart(2, '0')}-${año}|Semana Siguiente →]]
+`;
+
+    const fileContent = matter.stringify(body, frontmatter);
+    await fs.writeFile(filepath, fileContent, 'utf-8');
+
+    console.log(`✅ Review creado: ${filename}`);
+    res.json({
+      success: true,
+      message: 'Review creado correctamente',
+      filename,
+      semana,
+      año
+    });
+  } catch (error) {
+    console.error('Error en POST /api/reviews/crear:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // NOTAS SAGRADAS ENDPOINTS
 // ============================================

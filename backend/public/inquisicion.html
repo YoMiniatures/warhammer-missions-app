@@ -462,6 +462,63 @@
             </div>
         </div>
 
+        <!-- === FAB: CREATE REVIEW === -->
+        <button id="fab-create-review" class="fixed bottom-20 right-4 z-50 size-14 bg-primary hover:bg-primary-dark active:scale-95 transition-all shadow-lg flex items-center justify-center lg:bottom-6 lg:right-6">
+            <span class="material-symbols-outlined text-white text-2xl">add</span>
+        </button>
+
+        <!-- === MODAL: CREATE REVIEW === -->
+        <div id="modal-create-review" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-[#1a1718] border border-[#332224] w-full max-w-md max-h-[90vh] overflow-y-auto">
+                <!-- Header -->
+                <div class="sticky top-0 bg-[#1a1718] border-b border-[#332224] p-4 flex items-center justify-between z-10">
+                    <h2 class="text-secondary font-mono text-sm font-bold uppercase tracking-wider">/// Nueva Review Semanal ///</h2>
+                    <button id="btn-close-modal" class="text-gray-500 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- Form -->
+                <form id="form-create-review" class="p-4 space-y-4">
+                    <!-- Semana y Año -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1 font-mono uppercase">Semana (1-52)</label>
+                            <input type="number" id="review-semana" min="1" max="52" required class="w-full bg-[#0f0f10] border border-[#332224] text-white px-3 py-2 text-sm focus:border-secondary outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1 font-mono uppercase">Año</label>
+                            <input type="number" id="review-año" required class="w-full bg-[#0f0f10] border border-[#332224] text-white px-3 py-2 text-sm focus:border-secondary outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Fechas -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1 font-mono uppercase">Fecha Inicio</label>
+                            <input type="date" id="review-fecha-inicio" required class="w-full bg-[#0f0f10] border border-[#332224] text-white px-3 py-2 text-sm focus:border-secondary outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1 font-mono uppercase">Fecha Fin</label>
+                            <input type="date" id="review-fecha-fin" required class="w-full bg-[#0f0f10] border border-[#332224] text-white px-3 py-2 text-sm focus:border-secondary outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Reflexión -->
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1 font-mono uppercase">Reflexión de la Semana</label>
+                        <textarea id="review-reflexion" rows="4" placeholder="¿Cómo fue esta semana?..." class="w-full bg-[#0f0f10] border border-[#332224] text-white px-3 py-2 text-sm focus:border-secondary outline-none resize-none"></textarea>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-secondary hover:bg-secondary/80 text-[#1a1718] font-bold py-3 text-sm uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">save</span>
+                        Crear Review
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- === BOTTOM NAVIGATION === -->
         <nav class="lg:hidden fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">

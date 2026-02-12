@@ -732,6 +732,109 @@ function formatFechaCorta(fecha) {
 }
 
 // ==========================================
+//  CREATE REVIEW MODAL
+// ==========================================
+
+/**
+ * Open create review modal
+ */
+function openCreateReviewModal() {
+    const modal = document.getElementById('modal-create-review');
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // Calculate current week number
+    const startOfYear = new Date(currentYear, 0, 1);
+    const daysSinceStart = Math.floor((now - startOfYear) / (24 * 60 * 60 * 1000));
+    const currentWeek = Math.ceil((daysSinceStart + startOfYear.getDay() + 1) / 7);
+
+    // Pre-fill form with current week data
+    document.getElementById('review-semana').value = currentWeek;
+    document.getElementById('review-año').value = currentYear;
+
+    // Calculate week start (Monday) and end (Sunday)
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    document.getElementById('review-fecha-inicio').value = monday.toISOString().split('T')[0];
+    document.getElementById('review-fecha-fin').value = sunday.toISOString().split('T')[0];
+
+    modal.classList.remove('hidden');
+}
+
+/**
+ * Close create review modal
+ */
+function closeCreateReviewModal() {
+    const modal = document.getElementById('modal-create-review');
+    modal.classList.add('hidden');
+    document.getElementById('form-create-review').reset();
+}
+
+/**
+ * Handle create review form submission
+ */
+async function handleCreateReview(event) {
+    event.preventDefault();
+
+    const semana = parseInt(document.getElementById('review-semana').value, 10);
+    const año = parseInt(document.getElementById('review-año').value, 10);
+    const fechaInicio = document.getElementById('review-fecha-inicio').value;
+    const fechaFin = document.getElementById('review-fecha-fin').value;
+    const reflexion = document.getElementById('review-reflexion').value.trim() || '[Reflexión pendiente]';
+
+    // Validate
+    if (semana < 1 || semana > 52) {
+        showToast('Semana debe estar entre 1 y 52', 'error');
+        return;
+    }
+
+    if (!fechaInicio || !fechaFin) {
+        showToast('Debes especificar fechas de inicio y fin', 'error');
+        return;
+    }
+
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Creando...';
+
+    try {
+        const response = await fetch('/api/reviews/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                semana,
+                año,
+                fechaInicio,
+                fechaFin,
+                reflexion
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('✅ Review creado correctamente', 'success');
+            closeCreateReviewModal();
+
+            // Reload reviews after brief delay
+            setTimeout(() => cargarReviews(), 500);
+        } else {
+            showToast(data.error || 'Error al crear review', 'error');
+        }
+    } catch (error) {
+        console.error('[CreateReview] Error:', error);
+        showToast('Error de conexión', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Crear Review';
+    }
+}
+
+// ==========================================
 //  INIT
 // ==========================================
 
@@ -761,4 +864,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const el = document.getElementById('fecha-imperial');
         if (el) el.textContent = getFechaImperial();
     }, 60000);
+
+    // === CREATE REVIEW MODAL HANDLERS ===
+    const fabCreateReview = document.getElementById('fab-create-review');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const formCreateReview = document.getElementById('form-create-review');
+    const modalCreateReview = document.getElementById('modal-create-review');
+
+    if (fabCreateReview) {
+        fabCreateReview.addEventListener('click', openCreateReviewModal);
+    }
+
+    if (btnCloseModal) {
+        btnCloseModal.addEventListener('click', closeCreateReviewModal);
+    }
+
+    if (formCreateReview) {
+        formCreateReview.addEventListener('submit', handleCreateReview);
+    }
+
+    // Close modal on backdrop click
+    if (modalCreateReview) {
+        modalCreateReview.addEventListener('click', (e) => {
+            if (e.target === modalCreateReview) {
+                closeCreateReviewModal();
+            }
+        });
+    }
 });
