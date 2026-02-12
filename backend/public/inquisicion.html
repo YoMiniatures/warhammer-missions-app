@@ -338,6 +338,70 @@
                 </div>
             </div>
 
+            <!-- === STATS DEL MES ACTUAL === -->
+            <div class="px-4 pt-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-secondary text-sm">calendar_month</span>
+                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Stats del Mes Actual</span>
+                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Pureza Mes -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">Pureza Mes</p>
+                        <p id="month-pureza" class="text-2xl font-bold font-mono text-gray-500">0%</p>
+                        <p id="month-pureza-nivel" class="text-[8px] font-mono text-gray-600 uppercase tracking-widest mt-0.5">---</p>
+                    </div>
+                    <!-- Dias Perfectos Mes -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">D&iacute;as Perfect. Mes</p>
+                        <p id="month-perfectos" class="text-2xl font-bold font-mono text-green-500">0</p>
+                    </div>
+                    <!-- XP Mes -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">XP Mes</p>
+                        <p id="month-xp" class="text-2xl font-bold font-mono text-secondary">0</p>
+                    </div>
+                    <!-- Racha Actual -->
+                    <div class="bg-surface-dark border border-[#332224] p-3 text-center relative">
+                        <div class="absolute top-0 left-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <div class="absolute top-0 right-0 w-1.5 h-1.5 bg-[#332224]"></div>
+                        <p class="text-[9px] uppercase font-mono text-gray-500 tracking-wider mb-1">Racha Actual</p>
+                        <p id="month-streak" class="text-2xl font-bold font-mono text-amber-500">0<span class="text-sm text-gray-600"> sem</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === GRAFICA DE TENDENCIA === -->
+            <div class="px-4 pt-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-secondary text-sm">trending_up</span>
+                    <span class="text-[10px] font-mono text-gray-500 tracking-widest uppercase">Tendencia de Pureza</span>
+                    <div class="flex-grow h-px bg-gradient-to-r from-[#332224] to-transparent"></div>
+                </div>
+                <div class="bg-surface-dark border border-[#332224] p-4">
+                    <div id="trend-chart-container" class="w-full h-48 relative">
+                        <!-- SVG chart rendered by JS -->
+                    </div>
+                    <div class="flex items-center justify-center gap-4 mt-3 text-[9px] font-mono uppercase tracking-widest">
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-3 h-px bg-green-500"></div>
+                            <span class="text-gray-500">≥80% (Puro)</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-3 h-px bg-red-500"></div>
+                            <span class="text-gray-500">≤50% (Impuro)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Desktop: 2-column layout for heatmap + reviews -->
             <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-4">
                 <!-- Annual Heatmap (left column) -->

@@ -295,6 +295,8 @@ function updateYearButtons() {
 function renderAll() {
     document.getElementById('fecha-imperial').textContent = getFechaImperial();
     renderStats();
+    renderMonthStats();
+    renderTrendChart();
     renderHeatmap();
     renderReviewsList();
 }
@@ -343,6 +345,205 @@ function renderStats() {
     if (semanasEl) {
         semanasEl.innerHTML = `${resumen.semanasTrackeadas || 0}<span class="text-sm text-gray-600">/52</span>`;
     }
+}
+
+function renderMonthStats() {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+
+    // Calcular rango de semanas del mes actual
+    const firstDayOfMonth = new Date(currentAno, currentMonth - 1, 1);
+    const lastDayOfMonth = new Date(currentAno, currentMonth, 0);
+
+    // Helper para obtener semana del año
+    const getWeekNumber = (date) => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
+
+    const firstWeek = getWeekNumber(firstDayOfMonth);
+    const lastWeek = getWeekNumber(lastDayOfMonth);
+
+    // Filtrar reviews del mes actual
+    const reviewsDelMes = reviews.filter(r => {
+        const sem = r.semana;
+        // Manejar caso especial de semana 1 en diciembre/enero
+        if (currentMonth === 12 && sem === 1) return true;
+        if (currentMonth === 1 && sem >= 52) return true;
+        return sem >= firstWeek && sem <= lastWeek;
+    });
+
+    // Calcular stats del mes
+    let purezaTotal = 0;
+    let diasPerfectosTotal = 0;
+    let xpTotal = 0;
+
+    reviewsDelMes.forEach(r => {
+        purezaTotal += r.purezaPromedio || 0;
+        diasPerfectosTotal += r.diasPerfectos || 0;
+        xpTotal += r.xpTotal || 0;
+    });
+
+    const purezaPromedio = reviewsDelMes.length > 0 ? purezaTotal / reviewsDelMes.length : 0;
+
+    // Calcular racha actual (semanas consecutivas con pureza >= 70%)
+    let racha = 0;
+    const sortedReviews = [...reviews].sort((a, b) => b.semana - a.semana);
+    for (const r of sortedReviews) {
+        if ((r.purezaPromedio || 0) >= 70) {
+            racha++;
+        } else {
+            break;
+        }
+    }
+
+    // Renderizar Pureza Mes
+    const purezaMesEl = document.getElementById('month-pureza');
+    const purezaMesNivelEl = document.getElementById('month-pureza-nivel');
+    if (purezaMesEl) {
+        purezaMesEl.textContent = `${Math.round(purezaPromedio)}%`;
+
+        let colorClass, nivel;
+        if (purezaPromedio >= 80) {
+            colorClass = 'text-green-500';
+            nivel = 'PURO';
+        } else if (purezaPromedio >= 50) {
+            colorClass = 'text-amber-500';
+            nivel = 'EQUILIBRADO';
+        } else if (purezaPromedio > 0) {
+            colorClass = 'text-red-500';
+            nivel = 'CORROMPIDO';
+        } else {
+            colorClass = 'text-gray-500';
+            nivel = '---';
+        }
+
+        purezaMesEl.className = `text-2xl font-bold font-mono ${colorClass}`;
+        if (purezaMesNivelEl) {
+            purezaMesNivelEl.textContent = nivel;
+            purezaMesNivelEl.className = `text-[8px] font-mono uppercase tracking-widest mt-0.5 ${colorClass} opacity-70`;
+        }
+    }
+
+    // Renderizar Dias Perfectos Mes
+    const perfectosMesEl = document.getElementById('month-perfectos');
+    if (perfectosMesEl) perfectosMesEl.textContent = diasPerfectosTotal;
+
+    // Renderizar XP Mes
+    const xpMesEl = document.getElementById('month-xp');
+    if (xpMesEl) xpMesEl.textContent = xpTotal.toLocaleString();
+
+    // Renderizar Racha
+    const streakEl = document.getElementById('month-streak');
+    if (streakEl) {
+        streakEl.innerHTML = `${racha}<span class="text-sm text-gray-600"> sem</span>`;
+
+        // Color por racha
+        let streakColor;
+        if (racha >= 4) {
+            streakColor = 'text-green-500';
+        } else if (racha >= 2) {
+            streakColor = 'text-amber-500';
+        } else if (racha > 0) {
+            streakColor = 'text-amber-500';
+        } else {
+            streakColor = 'text-gray-500';
+        }
+
+        streakEl.className = `text-2xl font-bold font-mono ${streakColor}`;
+    }
+}
+
+function renderTrendChart() {
+    const container = document.getElementById('trend-chart-container');
+    if (!container) return;
+
+    // Obtener últimas 12 semanas con datos
+    const sortedReviews = [...reviews]
+        .filter(r => r.purezaPromedio !== undefined)
+        .sort((a, b) => a.semana - b.semana)
+        .slice(-12);
+
+    if (sortedReviews.length === 0) {
+        container.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-sm font-mono">SIN DATOS SUFICIENTES</div>';
+        return;
+    }
+
+    // Configuración del gráfico
+    const width = container.offsetWidth || 300;
+    const height = container.offsetHeight || 192;
+    const padding = { top: 20, right: 30, bottom: 30, left: 40 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Escala Y: 0-100%
+    const maxY = 100;
+    const minY = 0;
+
+    // Crear puntos
+    const points = sortedReviews.map((r, i) => {
+        const x = padding.left + (i / Math.max(sortedReviews.length - 1, 1)) * chartWidth;
+        const y = padding.top + chartHeight - ((r.purezaPromedio / maxY) * chartHeight);
+        return { x, y, semana: r.semana, pureza: r.purezaPromedio };
+    });
+
+    // Crear path para la línea
+    let pathD = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+        pathD += ` L ${points[i].x} ${points[i].y}`;
+    }
+
+    // Determinar color de línea basado en tendencia
+    const firstHalf = sortedReviews.slice(0, Math.floor(sortedReviews.length / 2));
+    const secondHalf = sortedReviews.slice(Math.floor(sortedReviews.length / 2));
+    const avgFirst = firstHalf.reduce((acc, r) => acc + r.purezaPromedio, 0) / firstHalf.length;
+    const avgSecond = secondHalf.reduce((acc, r) => acc + r.purezaPromedio, 0) / secondHalf.length;
+    const trending = avgSecond > avgFirst ? 'up' : avgSecond < avgFirst ? 'down' : 'stable';
+    const lineColor = trending === 'up' ? '#22c55e' : trending === 'down' ? '#ef4444' : '#f59e0b';
+
+    // Crear SVG
+    let svg = `<svg width="${width}" height="${height}" class="overflow-visible">`;
+
+    // Líneas de referencia
+    const ref80Y = padding.top + chartHeight - (80 / maxY) * chartHeight;
+    const ref50Y = padding.top + chartHeight - (50 / maxY) * chartHeight;
+
+    svg += `<line x1="${padding.left}" y1="${ref80Y}" x2="${width - padding.right}" y2="${ref80Y}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4 2" opacity="0.3"/>`;
+    svg += `<line x1="${padding.left}" y1="${ref50Y}" x2="${width - padding.right}" y2="${ref50Y}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 2" opacity="0.3"/>`;
+
+    // Eje Y labels
+    svg += `<text x="${padding.left - 10}" y="${padding.top}" text-anchor="end" fill="#9ca3af" font-size="10" font-family="monospace">100%</text>`;
+    svg += `<text x="${padding.left - 10}" y="${ref80Y + 3}" text-anchor="end" fill="#22c55e" font-size="9" font-family="monospace">80%</text>`;
+    svg += `<text x="${padding.left - 10}" y="${ref50Y + 3}" text-anchor="end" fill="#ef4444" font-size="9" font-family="monospace">50%</text>`;
+    svg += `<text x="${padding.left - 10}" y="${height - padding.bottom}" text-anchor="end" fill="#9ca3af" font-size="10" font-family="monospace">0%</text>`;
+
+    // Área bajo la curva (gradiente)
+    const areaPath = `${pathD} L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z`;
+    svg += `<path d="${areaPath}" fill="${lineColor}" opacity="0.1"/>`;
+
+    // Línea principal
+    svg += `<path d="${pathD}" stroke="${lineColor}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    // Puntos
+    points.forEach(p => {
+        svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${lineColor}" stroke="#0f0f10" stroke-width="2">`;
+        svg += `<title>Semana ${p.semana}: ${Math.round(p.pureza)}%</title>`;
+        svg += `</circle>`;
+    });
+
+    // Eje X labels (cada 2 semanas para no saturar)
+    points.forEach((p, i) => {
+        if (i % 2 === 0 || i === points.length - 1) {
+            svg += `<text x="${p.x}" y="${height - padding.bottom + 15}" text-anchor="middle" fill="#6b7280" font-size="9" font-family="monospace">S${p.semana}</text>`;
+        }
+    });
+
+    svg += '</svg>';
+
+    container.innerHTML = svg;
 }
 
 function renderHeatmap() {
