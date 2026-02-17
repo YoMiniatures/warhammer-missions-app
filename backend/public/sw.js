@@ -1,7 +1,7 @@
-// Warhammer Vault - Service Worker v15.0
-// Full offline support + Background Sync + Cache-First IndexedDB
+// Warhammer Vault - Service Worker v16.3
+// Full offline support + Background Sync + Cache-First IndexedDB + Bahía Médica (Condiciones)
 
-const CACHE_VERSION = 'v110';
+const CACHE_VERSION = 'v130';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
@@ -36,6 +36,8 @@ const PRECACHE_ASSETS = [
     '/planeta-detalle.js',
     '/inquisicion.html',
     '/inquisicion.js',
+    '/bahia-medica.html',
+    '/bahia-medica.js',
     '/db.js',
     '/sync-utils.js',
     '/manifest.json',
@@ -43,7 +45,8 @@ const PRECACHE_ASSETS = [
     '/assets/icons/icon-192.png',
     '/assets/icons/icon-512.png',
     '/assets/ship.glb',
-    '/assets/skybox.jpg'
+    '/assets/skybox.jpg',
+    '/assets/medbay-scan.jpg'
 ];
 
 // HTML pages for navigation fallback

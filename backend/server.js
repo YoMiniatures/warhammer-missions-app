@@ -1790,15 +1790,15 @@ pureza-dia: 0
 ${gruposYaml}
 dia-perfecto: false
 caos-total: 0
-imperio-total: 100
+imperio-total: 0
 caos-khorne: 0
 caos-nurgle: 0
 caos-tzeentch: 0
 caos-slaanesh: 0
-imperio-disciplina: 25
-imperio-fe: 25
-imperio-deber: 25
-imperio-humildad: 25
+imperio-disciplina: 0
+imperio-fe: 0
+imperio-deber: 0
+imperio-humildad: 0
 xp-rutinas: 0
 xp-perfecto: 0
 xp-total-dia: 0
@@ -3286,6 +3286,383 @@ function printStartupInfo(httpsActive) {
   console.log(`  Health check: /api/health`);
   console.log('========================================');
 }
+
+// ============================================
+// BAHÍA MÉDICA ENDPOINTS
+// ============================================
+
+function getRutaBahiaMedica(año) {
+  if (año === 2025) return path.join(SISTEMAS_PATH, 'SISTEMA AQUILA - AÑO 2025', '08 - BAHIA MEDICA');
+  if (año === 2026) return path.join(SISTEMAS_PATH, 'SISTEMA HIPPARION - AÑO 2026', '08 - BAHIA MEDICA');
+  return null;
+}
+
+// GET /api/bahia/checkups - Obtener todas las citas médicas
+app.get('/api/bahia/checkups', async (req, res) => {
+  try {
+    const año = parseInt(req.query.ano) || new Date().getFullYear();
+    const rutaBahia = getRutaBahiaMedica(año);
+
+    if (!rutaBahia) {
+      return res.json({ success: true, checkups: [] });
+    }
+
+    // Asegurar que existe la carpeta
+    await fs.mkdir(rutaBahia, { recursive: true });
+
+    const checkups = [];
+
+    if (existsSync(rutaBahia)) {
+      const files = readdirSync(rutaBahia).filter(f => f.startsWith('CHECKUP-') && f.endsWith('.md'));
+
+      for (const file of files) {
+        try {
+          const content = readFileSync(path.join(rutaBahia, file), 'utf-8');
+          const { data } = matter(content);
+
+          if (data.tipo === 'checkup-medico') {
+            checkups.push({
+              id: data.id || file.replace('.md', ''),
+              zone: data.zona || 'general',
+              name: data.nombre || '',
+              date: normalizarFecha(data.fecha),
+              time: data.hora || '',
+              doctor: data.doctor || '',
+              notes: data.notas || '',
+              frequency: data.frecuencia || 'none',
+              completed: data.completado || false,
+              created: normalizarFecha(data['fecha-creacion'])
+            });
+          }
+        } catch (e) {
+          console.error('Error leyendo checkup:', file, e);
+        }
+      }
+    }
+
+    // Ordenar por fecha
+    checkups.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    res.json({ success: true, checkups });
+  } catch (error) {
+    console.error('Error en GET /api/bahia/checkups:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/bahia/checkups/crear - Crear nueva cita médica
+app.post('/api/bahia/checkups/crear', async (req, res) => {
+  try {
+    const { id, zone, name, date, time, doctor, notes, frequency, completed } = req.body;
+
+    if (!id || !zone || !name || !date) {
+      return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
+    }
+
+    const año = new Date(date).getFullYear();
+    const rutaBahia = getRutaBahiaMedica(año);
+
+    if (!rutaBahia) {
+      return res.status(400).json({ success: false, error: 'Año no válido' });
+    }
+
+    await fs.mkdir(rutaBahia, { recursive: true });
+
+    const filename = `CHECKUP-${id}.md`;
+    const filepath = path.join(rutaBahia, filename);
+
+    // Verificar si ya existe
+    try {
+      await fs.access(filepath);
+      return res.status(409).json({ success: false, error: 'Ya existe un checkup con ese ID' });
+    } catch {
+      // No existe, continuar
+    }
+
+    // Crear contenido
+    const frontmatter = {
+      tipo: 'checkup-medico',
+      id: id,
+      zona: zone,
+      nombre: name,
+      fecha: new Date(date),
+      hora: time || '09:00',
+      doctor: doctor || '',
+      notas: notes || '',
+      frecuencia: frequency || 'none',
+      completado: completed || false,
+      'fecha-creacion': new Date()
+    };
+
+    const zoneNames = {
+      cabeza: 'CABEZA / CRÁNEO',
+      torso: 'TORSO / PECHO',
+      abdomen: 'ABDOMEN / BELLY',
+      pelvis: 'PELVIS / GENITALES',
+      brazos: 'BRAZOS',
+      manos: 'MANOS',
+      piernas: 'PIERNAS',
+      pies: 'PIES'
+    };
+
+    const body = `# ${name}
+
+## 📋 Detalles
+
+**Zona Corporal**: ${zoneNames[zone] || zone}
+**Fecha**: ${date}
+**Hora**: ${time || '09:00'}
+${doctor ? `**Doctor/Centro**: ${doctor}` : ''}
+
+## 📝 Notas
+
+${notes || 'Sin notas adicionales'}
+
+## 🔄 Frecuencia
+
+${frequency === 'none' ? 'No se repite' : frequency === 'yearly' ? 'Anual' : frequency === 'biannual' ? 'Semestral' : frequency === 'quarterly' ? 'Trimestral' : frequency === 'monthly' ? 'Mensual' : frequency}
+
+---
+
+*Creado desde Bahía Médica - Medicae Pod*
+`;
+
+    const content = matter.stringify(body, frontmatter);
+    await fs.writeFile(filepath, content, 'utf-8');
+
+    res.json({ success: true, id: id });
+  } catch (error) {
+    console.error('Error en POST /api/bahia/checkups/crear:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/bahia/checkups/:id - Eliminar cita médica
+app.delete('/api/bahia/checkups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Buscar el archivo en todos los años
+    for (const año of [2025, 2026]) {
+      const rutaBahia = getRutaBahiaMedica(año);
+      if (!rutaBahia) continue;
+
+      const filename = `CHECKUP-${id}.md`;
+      const filepath = path.join(rutaBahia, filename);
+
+      if (existsSync(filepath)) {
+        await fs.unlink(filepath);
+        return res.json({ success: true });
+      }
+    }
+
+    res.status(404).json({ success: false, error: 'Checkup no encontrado' });
+  } catch (error) {
+    console.error('Error en DELETE /api/bahia/checkups/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// BAHÍA MÉDICA - CONDICIONES (LESIONES / AFECCIONES)
+// ============================================
+
+function getRutaLesiones(año) {
+  return path.join(getRutaBahiaMedica(año), 'LESIONES');
+}
+
+function getRutaAfecciones(año) {
+  return path.join(getRutaBahiaMedica(año), 'AFECCIONES');
+}
+
+// GET /api/bahia/condiciones - Obtener lesiones y afecciones
+app.get('/api/bahia/condiciones', async (req, res) => {
+  try {
+    const año = parseInt(req.query.ano) || new Date().getFullYear();
+    const zonaFiltro = req.query.zona || null;
+
+    const rutaLesiones = getRutaLesiones(año);
+    const rutaAfecciones = getRutaAfecciones(año);
+    const condiciones = [];
+
+    // Leer lesiones
+    for (const ruta of [rutaLesiones, rutaAfecciones]) {
+      if (!existsSync(ruta)) continue;
+      const archivos = readdirSync(ruta).filter(f => f.endsWith('.md'));
+      for (const archivo of archivos) {
+        try {
+          const contenido = readFileSync(path.join(ruta, archivo), 'utf8');
+          const { data } = matter(contenido);
+          if (data.tipo !== 'lesion' && data.tipo !== 'afeccion') continue;
+          if (zonaFiltro && data.zona !== zonaFiltro) continue;
+          condiciones.push({
+            id: data.id || archivo.replace('.md', ''),
+            tipo: data.tipo,
+            zona: data.zona || '',
+            nombre: data.nombre || '',
+            permanente: data.permanente !== undefined ? data.permanente : (data.tipo === 'lesion'),
+            fechaInicio: normalizarFecha(data['fecha-inicio']),
+            severidad: data.severidad || 'leve',
+            notas: data.notas || '',
+            fechaResolucionEstimada: normalizarFecha(data['fecha-resolucion-estimada']),
+            completada: data.completada || false,
+            fechaCreacion: normalizarFecha(data['fecha-creacion']),
+          });
+        } catch (e) { /* skip malformed */ }
+      }
+    }
+
+    // Ordenar: permanentes primero, luego por fecha-inicio desc
+    condiciones.sort((a, b) => {
+      if (a.permanente !== b.permanente) return a.permanente ? -1 : 1;
+      return (b.fechaInicio || '').localeCompare(a.fechaInicio || '');
+    });
+
+    res.json({ success: true, condiciones });
+  } catch (error) {
+    console.error('Error en GET /api/bahia/condiciones:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/bahia/condiciones/crear - Crear nueva lesión o afección
+app.post('/api/bahia/condiciones/crear', async (req, res) => {
+  try {
+    const { id, tipo, zona, nombre, permanente, fechaInicio, severidad, notas, fechaResolucionEstimada } = req.body;
+
+    if (!id || !tipo || !zona || !nombre) {
+      return res.status(400).json({ success: false, error: 'Campos obligatorios: id, tipo, zona, nombre' });
+    }
+    if (tipo !== 'lesion' && tipo !== 'afeccion') {
+      return res.status(400).json({ success: false, error: 'tipo debe ser "lesion" o "afeccion"' });
+    }
+
+    // Determinar año desde fechaInicio o fecha actual
+    const fechaRef = fechaInicio ? new Date(fechaInicio) : new Date();
+    const año = fechaRef.getFullYear();
+    const ruta = tipo === 'lesion' ? getRutaLesiones(año) : getRutaAfecciones(año);
+
+    await fs.mkdir(ruta, { recursive: true });
+
+    const nombreArchivo = tipo === 'lesion' ? `LESION-${id}.md` : `AFECCION-${id}.md`;
+    const rutaArchivo = path.join(ruta, nombreArchivo);
+
+    if (existsSync(rutaArchivo)) {
+      return res.status(409).json({ success: false, error: 'Ya existe una condición con ese ID' });
+    }
+
+    const hoy = new Date();
+    const fechaCreacion = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+
+    const frontmatter = {
+      tipo,
+      id,
+      zona,
+      nombre,
+      permanente: permanente !== undefined ? permanente : (tipo === 'lesion'),
+      'fecha-inicio': fechaInicio || fechaCreacion,
+      severidad: severidad || 'leve',
+      notas: notas || '',
+      ...(tipo === 'afeccion' && { 'fecha-resolucion-estimada': fechaResolucionEstimada || '' }),
+      completada: false,
+      'fecha-creacion': fechaCreacion,
+    };
+
+    const tipoLabel = tipo === 'lesion' ? '🔴 Lesión Permanente' : '🟡 Afección Pasajera';
+    const cuerpo = `\n# ${tipoLabel}: ${nombre}\n\n> **Zona**: ${zona} | **Severidad**: ${severidad || 'leve'}\n\n## Descripción\n\n${notas || '*(Sin descripción adicional)*'}\n${tipo === 'afeccion' && fechaResolucionEstimada ? `\n## Resolución estimada\n\n${fechaResolucionEstimada}\n` : ''}\n`;
+
+    const contenido = matter.stringify(cuerpo, frontmatter);
+    await fs.writeFile(rutaArchivo, contenido, 'utf8');
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error en POST /api/bahia/condiciones/crear:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/bahia/condiciones/:id - Actualizar condición (notas, severidad, completada, fecha-resolucion)
+app.patch('/api/bahia/condiciones/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body; // { completada?, notas?, severidad?, fechaResolucionEstimada? }
+
+    let rutaArchivo = null;
+    for (const año of [2025, 2026]) {
+      for (const getRuta of [getRutaLesiones, getRutaAfecciones]) {
+        const ruta = getRuta(año);
+        if (!existsSync(ruta)) continue;
+        const archivos = readdirSync(ruta).filter(f => f.endsWith('.md'));
+        for (const archivo of archivos) {
+          try {
+            const contenido = readFileSync(path.join(ruta, archivo), 'utf8');
+            const { data } = matter(contenido);
+            if (data.id === id) {
+              rutaArchivo = path.join(ruta, archivo);
+              break;
+            }
+          } catch (e) { /* skip */ }
+        }
+        if (rutaArchivo) break;
+      }
+      if (rutaArchivo) break;
+    }
+
+    if (!rutaArchivo) {
+      return res.status(404).json({ success: false, error: 'Condición no encontrada' });
+    }
+
+    const contenidoActual = readFileSync(rutaArchivo, 'utf8');
+    const { data, content } = matter(contenidoActual);
+
+    if (updates.completada !== undefined) data.completada = updates.completada;
+    if (updates.notas !== undefined) data.notas = updates.notas;
+    if (updates.severidad !== undefined) data.severidad = updates.severidad;
+    if (updates.fechaResolucionEstimada !== undefined) data['fecha-resolucion-estimada'] = updates.fechaResolucionEstimada;
+
+    const nuevoContenido = matter.stringify(content, data);
+    await fs.writeFile(rutaArchivo, nuevoContenido, 'utf8');
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error en PATCH /api/bahia/condiciones/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/bahia/condiciones/:id - Eliminar condición
+app.delete('/api/bahia/condiciones/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    for (const año of [2025, 2026]) {
+      for (const getRuta of [getRutaLesiones, getRutaAfecciones]) {
+        const ruta = getRuta(año);
+        if (!existsSync(ruta)) continue;
+        const archivos = readdirSync(ruta).filter(f => f.endsWith('.md'));
+        for (const archivo of archivos) {
+          try {
+            const contenido = readFileSync(path.join(ruta, archivo), 'utf8');
+            const { data } = matter(contenido);
+            if (data.id === id) {
+              await fs.unlink(path.join(ruta, archivo));
+              return res.json({ success: true });
+            }
+          } catch (e) { /* skip */ }
+        }
+      }
+    }
+
+    res.status(404).json({ success: false, error: 'Condición no encontrada' });
+  } catch (error) {
+    console.error('Error en DELETE /api/bahia/condiciones/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// SERVER START
+// ============================================
 
 // HTTPS - si hay certificados en ./certs/
 let httpsActive = false;
