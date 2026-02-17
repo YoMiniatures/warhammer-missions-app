@@ -152,6 +152,8 @@ let firstLoad = true;
 let lastFrameTime = 0;
 let zoomedPlanetIndex = -1;
 let shipPlanetIndex = -1;
+let trackedPirataIndex = -1;  // Índice del pirata siendo trackeado
+let targetingEffect = null;    // Efecto visual de targeting alrededor del pirata
 
 // Three.js objects
 let scene, camera, renderer, controls;
@@ -162,6 +164,12 @@ let centralStar;
 let imperialShip;
 let sunEffect = null;
 let selectedPlanet = null; // Track currently selected planet for sidebar
+
+// Criterios de Victoria y Misiones (sprites sobre el planeta actual)
+let directivaSignals = [];      // Array de THREE.Sprite
+let pirataGroups = [];          // Array de THREE.Group
+let directivasData = [];        // Criterios de Victoria del mes actual
+let misionesSecundariasData = []; // Datos API (max 8)
 
 // Camera positions
 const OVERVIEW_POS = { x: 0, y: 10, z: 14 };
@@ -732,6 +740,309 @@ function createFallbackShip() {
 }
 
 // ==========================================
+//  DIRECTIVA SIGNALS (NEW)
+// ==========================================
+
+function createDirectivaSignals() {
+    // Limpiar markers existentes
+    directivaSignals.forEach(group => {
+        if (group.parent) group.parent.remove(group);
+        group.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (child.material.map) child.material.map.dispose();
+                child.material.dispose();
+            }
+        });
+    });
+    directivaSignals = [];
+
+    if (directivasData.length === 0) return;
+
+    const currentMonth  = new Date().getMonth() + 1;
+    const currentYear   = new Date().getFullYear();
+    const currentPlanet = planetMeshes.find(m =>
+        m.userData.planeta &&
+        m.userData.planeta.numeroMes === currentMonth &&
+        selectedYear === currentYear
+    );
+    if (!currentPlanet) return;
+
+    const planetSize      = currentPlanet.geometry.parameters.radius;
+    const activeCriterios = directivasData.filter(d => !d.completada);
+    const total           = activeCriterios.length;
+    const goldenAngle     = Math.PI * (3 - Math.sqrt(5));
+
+    const prioridadHex = {
+        'critica': 0xdc2626,
+        'alta':    0xf97316,
+        'media':   0xc5a065,
+        'baja':    0x3b82f6
+    };
+
+    const hexR    = planetSize * 0.26;   // Radio del hexágono
+    const spriteS = hexR * 1.10;         // Tamaño del plano águila
+
+    activeCriterios.forEach((criterio, index) => {
+        const colorHex = prioridadHex[criterio.prioridad] || 0xc5a065;
+        const seed     = hashString(criterio.id || `criterio-${index}`);
+        const group    = new THREE.Group();
+
+        // — 1. spinGroup: contenedor plano para hexágono (gira sobre la normal de la superficie) —
+        // RingGeometry/CircleGeometry por defecto están en el plano XY.
+        // El grupo tiene Y = normal de la superficie → sin corrección el hexágono quedaría vertical.
+        // Solución: rotation.x = PI/2 lo pone en el plano XZ (plano tangente = horizontal).
+        const spinGroup = new THREE.Group();
+        group.add(spinGroup);
+
+        // Relleno hexagonal blanco sutil
+        const discMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff, transparent: true, opacity: 0.18,
+            side: THREE.DoubleSide, depthWrite: false
+        });
+        const discMesh = new THREE.Mesh(new THREE.CircleGeometry(hexR * 0.78, 6), discMat);
+        discMesh.rotation.x = Math.PI / 2;
+        spinGroup.add(discMesh);
+
+        // — 2. Anillo hexagonal (borde de la zona) —
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: colorHex, transparent: true, opacity: 0.75,
+            side: THREE.DoubleSide, depthWrite: false
+        });
+        const ringMesh = new THREE.Mesh(
+            new THREE.RingGeometry(hexR * 0.70, hexR, 6), ringMat
+        );
+        ringMesh.rotation.x = Math.PI / 2;
+        spinGroup.add(ringMesh);
+
+        // — 3. Plano con águila (mismo plano que el hexágono, perpendicular a la normal) —
+        const c = document.createElement('canvas');
+        c.width = 128; c.height = 128;
+        // Canvas transparente (sin fondo circular) — el águila se carga en onload
+        const aquilaTexture = new THREE.CanvasTexture(c);
+        const aquilaMat = new THREE.MeshBasicMaterial({
+            map: aquilaTexture, transparent: true, depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const aquilaPlane = new THREE.Mesh(new THREE.PlaneGeometry(spriteS, spriteS), aquilaMat);
+        aquilaPlane.rotation.x = Math.PI / 2;
+        aquilaPlane.position.y = 0.01;   // offset mínimo sobre el disco (evita z-fighting)
+        spinGroup.add(aquilaPlane);
+
+        // — Posición Fibonacci + orientación perpendicular a la superficie —
+        const theta = index * goldenAngle;
+        const phi   = Math.acos(1 - 2 * (index + 0.5) / Math.max(total, 1));
+        const nx = Math.sin(phi) * Math.cos(theta);
+        const ny = Math.cos(phi);
+        const nz = Math.sin(phi) * Math.sin(theta);
+        group.position.set(nx * planetSize, ny * planetSize, nz * planetSize);
+        group.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3(nx, ny, nz)
+        );
+
+        currentPlanet.add(group);
+        group.userData = {
+            type:        'criterio-zone',
+            directiva:   criterio,
+            planetIndex: currentPlanet.userData.index,
+            spinGroup, ringMesh, aquilaPlane, aquilaTexture,
+            floatOffset: (seed % 628) / 100
+        };
+        directivaSignals.push(group);
+    });
+
+    // Cargar águila y pintar encima del círculo de color
+    const aquilaImg = new Image();
+    aquilaImg.src = '/assets/aquila.svg';
+    aquilaImg.onload = () => {
+        directivaSignals.forEach(({ userData }) => {
+            const { aquilaPlane, aquilaTexture } = userData;
+            if (!aquilaPlane) return;
+            const c = document.createElement('canvas');
+            c.width = 128; c.height = 128;
+            const ctx = c.getContext('2d');
+            // Solo el águila blanca sobre fondo transparente (mantener aspecto)
+            ctx.globalAlpha = 1.0;
+            ctx.filter = 'brightness(10) contrast(1.5)';
+            const iw = aquilaImg.naturalWidth || 128;
+            const ih = aquilaImg.naturalHeight || 128;
+            const asp = iw / ih;
+            let dx, dy, dw, dh;
+            if (asp >= 1) { dw = 112; dh = 112 / asp; dx = (128 - dw) / 2; dy = (128 - dh) / 2; }
+            else           { dh = 112; dw = 112 * asp; dy = (128 - dh) / 2; dx = (128 - dw) / 2; }
+            ctx.drawImage(aquilaImg, dx, dy, dw, dh);
+            const newTex = new THREE.CanvasTexture(c);
+            aquilaTexture.dispose();
+            aquilaPlane.material.map = newTex;
+            aquilaPlane.material.needsUpdate = true;
+            userData.aquilaTexture = newTex;
+        });
+    };
+
+    console.log(`[VoidMap] Created ${directivaSignals.length} criterio markers`);
+}
+
+function updateDirectivaSignals(delta) {
+    const now = performance.now() / 1000;
+
+    directivaSignals.forEach(group => {
+        const { spinGroup, ringMesh, floatOffset } = group.userData || {};
+        if (!spinGroup) return;
+
+        // Rotación lenta del hexágono alrededor de la normal de la superficie
+        spinGroup.rotation.y += delta * 0.22;
+
+        // Pulso de opacidad en el anillo hexagonal
+        if (ringMesh) {
+            const pulse = 0.5 + 0.5 * Math.sin(now * 1.4 + floatOffset);
+            ringMesh.material.opacity = 0.45 + 0.35 * pulse;
+        }
+    });
+}
+
+// ==========================================
+//  PIRATA SHIPS (NEW)
+// ==========================================
+
+function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+}
+
+function createPirataShips() {
+    // Limpiar piratas existentes
+    pirataGroups.forEach(p => {
+        scene.remove(p);
+        p.children.forEach(c => {
+            if (c.material && c.material.map) c.material.map.dispose();
+            if (c.material) c.material.dispose();
+            if (c.geometry) c.geometry.dispose();
+        });
+    });
+    pirataGroups = [];
+
+    if (misionesSecundariasData.length === 0) {
+        console.log('[VoidMap] No secondary missions to display');
+        return;
+    }
+
+    console.log(`[VoidMap] Creating ${misionesSecundariasData.length} pirata ships`);
+
+    misionesSecundariasData.forEach((mision, index) => {
+        // Triángulo (nave pirata)
+        const triangleGeo = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+            0, 0.4, 0,      // punta arriba (increased from 0.15)
+            -0.25, -0.25, 0,  // izquierda abajo (increased from -0.1)
+            0.25, -0.25, 0    // derecha abajo (increased from 0.1)
+        ]);
+        triangleGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        triangleGeo.setIndex([0, 1, 2]);
+
+        const triangleMat = new THREE.MeshBasicMaterial({
+            color: 0x990000,
+            side: THREE.DoubleSide,
+            depthTest: true,  // Respetar profundidad
+            depthWrite: false
+        });
+        const triangleMesh = new THREE.Mesh(triangleGeo, triangleMat);
+
+        // Calavera sprite
+        const skullCanvas = document.createElement('canvas');
+        skullCanvas.width = 32;
+        skullCanvas.height = 32;
+        const sCtx = skullCanvas.getContext('2d');
+        sCtx.font = '24px monospace';
+        sCtx.fillText('☠️', 4, 24);
+
+        const skullTexture = new THREE.CanvasTexture(skullCanvas);
+        const skullMat = new THREE.SpriteMaterial({
+            map: skullTexture,
+            depthTest: true,  // Respetar profundidad
+            depthWrite: false
+        });
+        const skullSprite = new THREE.Sprite(skullMat);
+        skullSprite.scale.set(0.3, 0.3, 1); // Increased from 0.12
+        skullSprite.position.set(0, 0.5, 0); // Adjusted for larger triangle
+
+        // Collider invisible (esfera más grande para facilitar clicks)
+        const colliderGeo = new THREE.SphereGeometry(0.6, 8, 8);
+        const colliderMat = new THREE.MeshBasicMaterial({
+            visible: false,
+            depthTest: true,
+            depthWrite: false
+        });
+        const collider = new THREE.Mesh(colliderGeo, colliderMat);
+
+        // Grupo pirata
+        const group = new THREE.Group();
+        group.add(collider);      // Collider primero (para raycasting)
+        group.add(triangleMesh);
+        group.add(skullSprite);
+
+        // Posición pseudorandom pero consistente (usando hash del ID)
+        const seed = hashString(mision.id || `mision-${index}`);
+        const radius = 3.5 + (seed % 300) / 100; // 3.5 a 6.5
+        const angle = ((seed % 360) / 360) * Math.PI * 2;
+
+        group.position.set(
+            Math.cos(angle) * radius,
+            (seed % 100) / 100 - 0.5, // -0.5 a 0.5
+            Math.sin(angle) * radius
+        );
+
+        group.userData = {
+            type: 'pirata',
+            mision: mision,
+            spinSpeed: 0.3,
+            floatOffset: seed / 100,
+            baseY: group.position.y
+        };
+
+        scene.add(group);
+        pirataGroups.push(group);
+    });
+
+    console.log(`[VoidMap] Created ${pirataGroups.length} pirata ships`);
+}
+
+function updatePiratas(delta, now) {
+    pirataGroups.forEach(group => {
+        // Rotación en Y (spin pirata)
+        group.rotation.y += group.userData.spinSpeed * delta;
+
+        // Movimiento flotante sutil
+        const floatTime = now * 0.001 + group.userData.floatOffset;
+        group.position.y = group.userData.baseY + Math.sin(floatTime) * 0.05;
+    });
+}
+
+function updateVisualsVisibility() {
+    // Pirate groups visibility
+    pirataGroups.forEach((g, index) => {
+        if (zoomState === 'overview') {
+            g.visible = true; // All visible in overview
+        } else if (zoomState === 'tracking') {
+            g.visible = (index === trackedPirataIndex); // Only tracked pirata visible
+        } else {
+            g.visible = false; // Hidden when zoomed to planet
+        }
+    });
+
+    // Directiva signals: visible only when zoomed to their planet
+    directivaSignals.forEach(sprite => {
+        const signalPlanetIndex = sprite.userData.planetIndex;
+        sprite.visible = (zoomState === 'zoomed' && zoomedPlanetIndex === signalPlanetIndex);
+    });
+}
+
+// ==========================================
 //  CAMERA ZOOM FUNCTIONS
 // ==========================================
 
@@ -759,6 +1070,7 @@ function zoomToPlanet(planetIndex) {
         zoomState = 'zoomed';
         controls.autoRotate = false;
         showSummaryPanel(mesh.userData.planeta);
+        updateVisualsVisibility(); // Hide signals and pirates when zoomed
     });
 }
 
@@ -766,11 +1078,43 @@ function zoomToOverview() {
     if (isAnimatingCamera) return;
 
     hideSummaryPanel();
+    hideTargetingEffect();
 
     zoomedPlanetIndex = -1;
+    trackedPirataIndex = -1;
     animateCamera(OVERVIEW_POS, OVERVIEW_TARGET, 800, () => {
         zoomState = 'overview';
         controls.autoRotate = true;
+        updateVisualsVisibility(); // Show signals and pirates in overview
+    });
+}
+
+function zoomToPirata(pirataIndex) {
+    if (isAnimatingCamera || !pirataGroups[pirataIndex]) return;
+
+    const group = pirataGroups[pirataIndex];
+    const pirataPos = group.position.clone();
+
+    // Camera position: close to pirata for tracking view
+    const dir = pirataPos.clone().normalize();
+    const targetCamPos = {
+        x: pirataPos.x + dir.x * 2.5,
+        y: pirataPos.y + 1.8,
+        z: pirataPos.z + dir.z * 2.5
+    };
+    const targetLookAt = {
+        x: pirataPos.x,
+        y: pirataPos.y,
+        z: pirataPos.z
+    };
+
+    trackedPirataIndex = pirataIndex;
+    animateCamera(targetCamPos, targetLookAt, 800, () => {
+        zoomState = 'tracking';  // Nuevo estado para tracking de piratas
+        controls.autoRotate = false;
+        showPirataSummaryPanel(group.userData.mision);
+        showTargetingEffect(pirataIndex);
+        updateVisualsVisibility();
     });
 }
 
@@ -868,6 +1212,87 @@ function hideSummaryPanel() {
     if (panel) panel.classList.add('hidden');
 }
 
+function showPirataSummaryPanel(mision) {
+    // Reusar el planet-summary panel pero con contenido de misión
+    const panel = document.getElementById('planet-summary');
+    if (!panel) return;
+
+    const prioridadColors = {
+        'critica': 'border-red-500 text-red-500',
+        'alta': 'border-orange-500 text-orange-500',
+        'media': 'border-amber-500 text-amber-500',
+        'baja': 'border-blue-500 text-blue-500'
+    };
+
+    document.getElementById('summary-name').textContent = '☠️ ' + mision.titulo;
+    document.getElementById('summary-progress').textContent = mision['puntos-xp'] || '---';
+    document.getElementById('summary-missions').textContent = 'XP';
+    document.getElementById('summary-mes').textContent = mision.categoria || 'pirata';
+
+    const estadoEl = document.getElementById('summary-estado');
+    estadoEl.className = `text-[10px] font-mono px-2 py-0.5 border ${prioridadColors[mision.prioridad] || prioridadColors.media}`;
+    estadoEl.textContent = (mision.prioridad || 'media').toUpperCase();
+
+    const link = document.getElementById('summary-link');
+    link.href = `index.html?highlight=${encodeURIComponent(mision.id)}`;
+    link.textContent = 'TRACK MISSION';
+    link.onclick = null; // Navegación normal
+
+    panel.classList.remove('hidden');
+}
+
+function showTargetingEffect(pirataIndex) {
+    hideTargetingEffect(); // Limpiar efecto anterior
+
+    const group = pirataGroups[pirataIndex];
+    if (!group) return;
+
+    // Crear anillos de targeting (bullseye)
+    const ring1 = createTargetingRing(0.8, 0xff0000);
+    const ring2 = createTargetingRing(1.2, 0xff4444);
+    const ring3 = createTargetingRing(1.6, 0xff8888);
+
+    const targetingGroup = new THREE.Group();
+    targetingGroup.add(ring1);
+    targetingGroup.add(ring2);
+    targetingGroup.add(ring3);
+
+    targetingGroup.position.copy(group.position);
+    targetingGroup.userData = {
+        type: 'targeting',
+        pirataIndex: pirataIndex,
+        rings: [ring1, ring2, ring3]
+    };
+
+    scene.add(targetingGroup);
+    targetingEffect = targetingGroup;
+}
+
+function createTargetingRing(radius, color) {
+    const geometry = new THREE.RingGeometry(radius - 0.02, radius + 0.02, 32);
+    const material = new THREE.MeshBasicMaterial({
+        color: color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.6,
+        depthTest: false
+    });
+    const ring = new THREE.Mesh(geometry, material);
+    ring.rotation.x = Math.PI / 2;
+    return ring;
+}
+
+function hideTargetingEffect() {
+    if (targetingEffect) {
+        scene.remove(targetingEffect);
+        targetingEffect.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+        targetingEffect = null;
+    }
+}
+
 // ==========================================
 //  HTML LABEL OVERLAYS
 // ==========================================
@@ -945,6 +1370,12 @@ function animate() {
     // Imperial ship follows its planet + subtle hover
     updateShipFollow(delta);
 
+    // Animate directiva signals (NEW)
+    updateDirectivaSignals(delta);
+
+    // Animate pirata ships (NEW)
+    updatePiratas(delta, now);
+
     // If zoomed, camera follows the orbiting planet
     if (zoomState === 'zoomed' && zoomedPlanetIndex >= 0 && !isAnimatingCamera) {
         const mesh = planetMeshes[zoomedPlanetIndex];
@@ -952,6 +1383,26 @@ function animate() {
             const offset = camera.position.clone().sub(controls.target);
             controls.target.copy(mesh.position);
             camera.position.copy(mesh.position).add(offset);
+        }
+    }
+
+    // If tracking pirata, camera follows it
+    if (zoomState === 'tracking' && trackedPirataIndex >= 0 && !isAnimatingCamera) {
+        const group = pirataGroups[trackedPirataIndex];
+        if (group) {
+            const offset = camera.position.clone().sub(controls.target);
+            controls.target.copy(group.position);
+            camera.position.copy(group.position).add(offset);
+
+            // Update targeting effect position
+            if (targetingEffect) {
+                targetingEffect.position.copy(group.position);
+                // Animate rings (pulse effect)
+                const pulse = Math.sin(now * 0.002) * 0.1;
+                targetingEffect.userData.rings.forEach((ring, i) => {
+                    ring.material.opacity = 0.6 + pulse * (1 - i * 0.2);
+                });
+            }
         }
     }
 
@@ -1031,6 +1482,52 @@ function onPlanetClick(event) {
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
+
+    // Detectar beacons de criterios (recursive=true para detectar meshes hijo)
+    const signalIntersects = raycaster.intersectObjects(directivaSignals, true);
+    if (signalIntersects.length > 0) {
+        // Subir la jerarquía hasta encontrar el grupo con userData.type === 'criterio-zone'
+        // (mesh → spinGroup → group, necesita dos .parent)
+        let targetNode = signalIntersects[0].object;
+        while (targetNode && targetNode.userData?.type !== 'criterio-zone') {
+            targetNode = targetNode.parent;
+        }
+        const group = targetNode;
+        if (group && group.userData && group.userData.directiva) {
+            // Solo clickeable si el beacon está en la cara visible del planeta
+            const beaconWorldPos = new THREE.Vector3();
+            group.getWorldPosition(beaconWorldPos);
+
+            const planetMesh = planetMeshes[group.userData.planetIndex];
+            if (planetMesh) {
+                const normal = new THREE.Vector3()
+                    .subVectors(beaconWorldPos, planetMesh.position)
+                    .normalize();
+                const viewDir = new THREE.Vector3()
+                    .subVectors(camera.position, beaconWorldPos)
+                    .normalize();
+
+                if (normal.dot(viewDir) > 0) {
+                    showDirectivaModal(group.userData.directiva);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Detectar piratas (NUEVO) - ahora con collider invisible
+    const pirataColliders = pirataGroups.map(g => g.children[0]); // El collider es children[0]
+    const pirataIntersects = raycaster.intersectObjects(pirataColliders);
+    if (pirataIntersects.length > 0) {
+        const collider = pirataIntersects[0].object;
+        const pirataIndex = pirataGroups.findIndex(g => g.children[0] === collider);
+        if (pirataIndex >= 0) {
+            zoomToPirata(pirataIndex); // Hacer zoom en lugar de modal
+            return;
+        }
+    }
+
+    // Detectar planetas (existente)
     const intersects = raycaster.intersectObjects(planetMeshes);
 
     if (intersects.length > 0) {
@@ -1342,6 +1839,118 @@ function closePlanetSidebar() {
     }
 }
 
+// ==========================================
+//  MODALES DE DIRECTIVAS Y PIRATAS (NEW)
+// ==========================================
+
+function showDirectivaModal(criterio) {
+    const prioridadColors = {
+        'critica': '#dc2626',
+        'alta': '#f97316',
+        'media': '#c5a065',
+        'baja': '#3b82f6'
+    };
+    const priorColor = prioridadColors[criterio.prioridad] || '#c5a065';
+    const completada = criterio.completada;
+    const deadline = criterio.deadline || '';
+    const statusText = completada ? 'COMPLETADO' : (deadline ? `Deadline: ${deadline}` : 'PENDIENTE');
+    const statusColor = completada ? '#22c55e' : '#a0a0a0';
+
+    const modalHTML = `
+        <div id="directiva-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="pointer-events: auto;">
+            <div class="bg-[#161011] border border-[#332224] rounded-lg p-6 max-w-md w-full">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[10px] font-mono mb-1" style="color:${priorColor}">/// CRITERIO DE VICTORIA ///</div>
+                        <h2 class="text-lg font-bold text-white leading-snug">${criterio.titulo || 'Criterio'}</h2>
+                    </div>
+                    <button id="close-modal" class="text-gray-500 hover:text-white ml-3 flex-shrink-0">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 mb-3 flex-wrap">
+                    <span class="text-[10px] font-mono px-2 py-0.5 border rounded" style="color:${priorColor}; border-color:${priorColor};">${(criterio.prioridad || 'media').toUpperCase()}</span>
+                    <span class="text-[10px] font-mono" style="color:${statusColor}">${statusText}</span>
+                </div>
+
+                ${criterio.categoria ? `
+                    <div class="text-[10px] text-gray-600 font-mono uppercase tracking-widest">${criterio.categoria}</div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('close-modal').addEventListener('click', () => {
+        document.getElementById('directiva-modal').remove();
+    });
+
+    document.getElementById('directiva-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'directiva-modal') {
+            document.getElementById('directiva-modal').remove();
+        }
+    });
+}
+
+function showPirataModal(mision) {
+    const prioridadColors = {
+        'critica': 'text-red-500',
+        'alta': 'text-orange-500',
+        'media': 'text-yellow-500',
+        'baja': 'text-blue-500'
+    };
+
+    const modalHTML = `
+        <div id="pirata-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="pointer-events: auto;">
+            <div class="bg-[#161011] border border-[#332224] rounded-lg p-6 max-w-md w-full">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">☠️</span>
+                        <h2 class="text-xl font-bold text-white">Misión Secundaria</h2>
+                    </div>
+                    <button id="close-pirata-modal" class="text-gray-500 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="text-lg font-bold text-secondary mb-2">${mision.titulo || 'Misión'}</h3>
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="px-2 py-1 rounded-sm ${prioridadColors[mision.prioridad] || 'text-gray-400'} bg-black/30 border border-current uppercase font-bold">
+                            ${(mision.prioridad || 'media').toUpperCase()}
+                        </span>
+                        ${mision['puntos-xp'] ? `<span class="text-secondary">${mision['puntos-xp']} XP</span>` : ''}
+                        ${mision.deadline ? `<span class="text-gray-400">${mision.deadline}</span>` : ''}
+                    </div>
+                </div>
+
+                <button id="track-mision" class="w-full py-2 bg-primary border border-primary text-white hover:bg-primary/80 transition-colors rounded font-bold uppercase">
+                    TRACK MISSION
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('close-pirata-modal').addEventListener('click', () => {
+        document.getElementById('pirata-modal').remove();
+    });
+
+    document.getElementById('track-mision').addEventListener('click', () => {
+        // Redirigir a Bridge con la misión seleccionada
+        window.location.href = `index.html?highlight=${encodeURIComponent(mision.id)}`;
+    });
+
+    document.getElementById('pirata-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'pirata-modal') {
+            document.getElementById('pirata-modal').remove();
+        }
+    });
+}
+
 function onResize() {
     if (!renderer) return;
     const width = window.innerWidth;
@@ -1465,6 +2074,34 @@ function switchYear(año) {
         imperialShip = null;
     }
 
+    // Clean up criterio zone markers (attached to planets)
+    directivaSignals.forEach(group => {
+        if (group.parent) group.parent.remove(group);
+        group.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (child.material.map) child.material.map.dispose();
+                child.material.dispose();
+            }
+        });
+    });
+    directivaSignals = [];
+    directivasData = [];
+
+    // Clean up pirata ships
+    pirataGroups.forEach(group => {
+        scene.remove(group);
+        group.children.forEach(child => {
+            if (child.material) {
+                if (child.material.map) child.material.map.dispose();
+                child.material.dispose();
+            }
+            if (child.geometry) child.geometry.dispose();
+        });
+    });
+    pirataGroups = [];
+    misionesSecundariasData = [];
+
     // Update pills
     document.querySelectorAll('.year-pill').forEach(btn => {
         if (parseInt(btn.dataset.year) === año) {
@@ -1500,6 +2137,13 @@ async function cargarPlanetas() {
                     const planetasAño = cached.data.filter(p => p.año === selectedYear);
                     if (planetasAño.length > 0) {
                         planetas = planetasAño;
+
+                        // Load directivas and misiones even with cached planets
+                        await Promise.all([
+                            cargarDirectivas(),
+                            cargarMisionesSecundarias()
+                        ]);
+
                         renderData();
                         setLoading(false);
                         if (cached.isFresh) return;
@@ -1517,8 +2161,6 @@ async function cargarPlanetas() {
 
         if (data.success && data.planetas) {
             planetas = data.planetas;
-            renderData();
-            setLoading(false);
 
             // Cache the data
             if (DB) {
@@ -1528,6 +2170,15 @@ async function cargarPlanetas() {
                     console.warn('[VoidMap] Cache write error:', e);
                 }
             }
+
+            // Load directivas and misiones in parallel
+            await Promise.all([
+                cargarDirectivas(),
+                cargarMisionesSecundarias()
+            ]);
+
+            renderData();
+            setLoading(false);
         }
     } catch (error) {
         console.error('[VoidMap] Error loading planets:', error);
@@ -1554,6 +2205,12 @@ function renderData() {
     if (scene) {
         createPlanets(planetas);
 
+        // Create directiva signals (NEW)
+        createDirectivaSignals();
+
+        // Create pirata ships (NEW)
+        createPirataShips();
+
         // On first load, zoom to current month's planet
         if (firstLoad && selectedYear === new Date().getFullYear()) {
             firstLoad = false;
@@ -1573,6 +2230,102 @@ function renderData() {
     // Update linear view if visible
     if (currentView === 'linear') {
         renderLinearView();
+    }
+}
+
+// ==========================================
+//  DIRECTIVAS & MISIONES SECUNDARIAS FETCH
+// ==========================================
+
+async function cargarDirectivas() {
+    try {
+        const DB = window.WhVaultDB;
+
+        // Cache-first
+        if (DB) {
+            try {
+                const cached = await DB.getCachedData(DB.STORES.MISIONES_CRITERIOS);
+                if (cached && cached.data) {
+                    directivasData = cached.data;
+                    if (cached.isFresh) return;
+                }
+            } catch (e) {
+                console.warn('[VoidMap] Criterios cache error:', e);
+            }
+        }
+
+        // Fetch criterios de victoria del mes actual
+        const res = await fetch(`${API_URL}/misiones/criterios-victoria`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.success && data.misiones) {
+            directivasData = data.misiones;
+            console.log(`[VoidMap] Loaded ${directivasData.length} criterios de victoria`);
+
+            // Cache
+            if (DB) {
+                try {
+                    await DB.cacheApiData(DB.STORES.MISIONES_CRITERIOS, data.misiones);
+                } catch (e) {
+                    console.warn('[VoidMap] Criterios cache write error:', e);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('[VoidMap] Error loading criterios:', error);
+        directivasData = [];
+    }
+}
+
+async function cargarMisionesSecundarias() {
+    try {
+        const DB = window.WhVaultDB;
+
+        // Cache-first
+        if (DB) {
+            try {
+                const cached = await DB.getCachedData(DB.STORES.MISIONES_OPCIONALES);
+                if (cached && cached.data) {
+                    // Ordenar por prioridad y limitar a 8
+                    const sorted = cached.data.sort((a, b) => {
+                        const prioOrder = { 'critica': 0, 'alta': 1, 'media': 2, 'baja': 3 };
+                        return (prioOrder[a.prioridad] || 4) - (prioOrder[b.prioridad] || 4);
+                    });
+                    misionesSecundariasData = sorted.slice(0, 8);
+                    if (cached.isFresh) return;
+                }
+            } catch (e) {
+                console.warn('[VoidMap] Misiones cache error:', e);
+            }
+        }
+
+        // Fetch from API
+        const res = await fetch(`${API_URL}/misiones/opcionales`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.success && data.misiones) {
+            // Ordenar por prioridad y limitar a 8
+            const sorted = data.misiones.sort((a, b) => {
+                const prioOrder = { 'critica': 0, 'alta': 1, 'media': 2, 'baja': 3 };
+                return (prioOrder[b.prioridad] || 4) - (prioOrder[a.prioridad] || 4);
+            });
+            misionesSecundariasData = sorted.slice(0, 8);
+            console.log(`[VoidMap] Loaded ${misionesSecundariasData.length} secondary missions`);
+
+            // Cache
+            if (DB) {
+                try {
+                    await DB.cacheApiData(DB.STORES.MISIONES_OPCIONALES, data.misiones);
+                } catch (e) {
+                    console.warn('[VoidMap] Misiones cache write error:', e);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('[VoidMap] Error loading secondary missions:', error);
+        misionesSecundariasData = [];
     }
 }
 

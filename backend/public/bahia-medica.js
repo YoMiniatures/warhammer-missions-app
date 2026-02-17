@@ -107,6 +107,8 @@ let condicionesData = [];
 let historialData = [];
 let historialFiltroActivo = 'todos';
 let historialSubtipoActivo = 'visita';
+let editingHistorialId = null;   // ID de entrada en edición (null = nueva)
+let editingCitaId = null;        // ID de cita en edición (null = nueva)
 const LS_BAHIA_VIEW = 'bahia-view-activa';
 
 // ==========================================
@@ -1245,39 +1247,59 @@ async function loadHistorialFromCache() {
 function setView(view) {
     const podView = document.getElementById('pod-view');
     const zoneView = document.getElementById('zone-view');
+    const scannerMain = document.getElementById('scanner-main');
     const historialView = document.getElementById('historial-view');
+    const agendaView = document.getElementById('agenda-view');
     const fabCheckup = document.getElementById('fab-add');
     const fabHistorial = document.getElementById('fab-historial');
+    const fabAgenda = document.getElementById('fab-agenda');
     const btnScanner = document.getElementById('btn-scanner');
     const btnHistorial = document.getElementById('btn-historial');
+    const btnAgenda = document.getElementById('btn-agenda');
+    const editModeBtn = document.getElementById('edit-mode-btn');
     if (!podView || !historialView) return;
 
+    // Ocultar todo primero
+    podView.classList.add('hidden');
+    zoneView?.classList.add('hidden');
+    scannerMain?.classList.add('hidden');
+    historialView.classList.add('hidden');
+    agendaView?.classList.add('hidden');
+    fabCheckup?.classList.add('hidden');
+    editModeBtn?.classList.add('hidden');
+    fabHistorial?.classList.add('hidden');
+    fabAgenda?.classList.add('hidden');
+
+    // Resetear estilos de todos los botones
+    const resetBtn = (btn) => {
+        btn?.classList.remove('border-medical-green', 'bg-medical-green/10', 'text-medical-green',
+                               'border-blue-500', 'bg-blue-500/10', 'text-blue-400',
+                               'border-teal-500', 'bg-teal-500/10', 'text-teal-400');
+        btn?.classList.add('border-[#2d2d2d]', 'text-gray-500');
+    };
+    resetBtn(btnScanner); resetBtn(btnHistorial); resetBtn(btnAgenda);
+
     if (view === 'historial') {
-        podView.classList.add('hidden');
-        zoneView?.classList.add('hidden');
         historialView.classList.remove('hidden');
-        fabCheckup?.classList.add('hidden');
         fabHistorial?.classList.remove('hidden');
-        // Estilos botones toggle
-        btnScanner?.classList.remove('border-medical-green', 'bg-medical-green/10', 'text-medical-green');
-        btnScanner?.classList.add('border-[#2d2d2d]', 'text-gray-500');
-        btnHistorial?.classList.add('border-blue-500', 'bg-blue-500/10', 'text-blue-400');
         btnHistorial?.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        btnHistorial?.classList.add('border-blue-500', 'bg-blue-500/10', 'text-blue-400');
         localStorage.setItem(LS_BAHIA_VIEW, 'historial');
         renderHistorialList();
+    } else if (view === 'agenda') {
+        agendaView?.classList.remove('hidden');
+        fabAgenda?.classList.remove('hidden');
+        btnAgenda?.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        btnAgenda?.classList.add('border-teal-500', 'bg-teal-500/10', 'text-teal-400');
+        localStorage.setItem(LS_BAHIA_VIEW, 'agenda');
+        renderAgendaView();
     } else {
-        historialView.classList.add('hidden');
-        fabHistorial?.classList.add('hidden');
+        scannerMain?.classList.remove('hidden');
         podView.classList.remove('hidden');
-        // Restaurar FAB checkup si estamos en zona
-        if (currentZone) {
-            fabCheckup?.classList.remove('hidden');
-        }
-        // Estilos botones toggle
-        btnHistorial?.classList.remove('border-blue-500', 'bg-blue-500/10', 'text-blue-400');
-        btnHistorial?.classList.add('border-[#2d2d2d]', 'text-gray-500');
-        btnScanner?.classList.add('border-medical-green', 'bg-medical-green/10', 'text-medical-green');
+        if (currentZone) fabCheckup?.classList.remove('hidden');
+        editModeBtn?.classList.remove('hidden');
         btnScanner?.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        btnScanner?.classList.add('border-medical-green', 'bg-medical-green/10', 'text-medical-green');
         localStorage.setItem(LS_BAHIA_VIEW, 'scanner');
     }
 }
@@ -1376,7 +1398,7 @@ function renderHistorialCard(h) {
         : '';
 
     return `
-        <div class="relative rounded-lg p-3 mb-2 cursor-pointer hover:opacity-90 transition-opacity group"
+        <div class="relative rounded-lg p-3 mb-2 cursor-pointer hover:opacity-90 transition-opacity"
              style="background: rgba(20,18,18,0.9); border: 1.5px solid ${cfg.color}22; border-left: 3px solid ${cfg.color};"
              onclick="openHistorialDetalle('${h.id}')">
             <div class="flex items-start justify-between gap-2">
@@ -1391,17 +1413,30 @@ function renderHistorialCard(h) {
                         ${detalle ? `<p class="text-gray-400 text-xs mt-0.5 truncate">${detalle}</p>` : ''}
                     </div>
                 </div>
-                <div class="text-right flex-shrink-0">
-                    <p class="text-gray-500 text-[10px] font-mono">${fechaStr}</p>
-                    <button onclick="event.stopPropagation(); deleteHistorial('${h.id}')"
-                        class="opacity-0 group-hover:opacity-100 transition-opacity mt-1 text-gray-600 hover:text-red-400">
-                        <span class="material-symbols-outlined text-sm">delete</span>
-                    </button>
-                </div>
+                <p class="text-gray-500 text-[10px] font-mono flex-shrink-0">${fechaStr}</p>
             </div>
             ${h.notas ? `<p class="text-gray-500 text-[10px] mt-1.5 italic line-clamp-1">${h.notas}</p>` : ''}
+            <div class="flex gap-2 mt-1.5">
+                <button onclick="event.stopPropagation(); editHistorial('${h.id}')"
+                    class="text-gray-700 hover:text-blue-400 transition-colors" title="Editar">
+                    <span class="material-symbols-outlined" style="font-size:13px">edit</span>
+                </button>
+                <button onclick="event.stopPropagation(); deleteHistorial('${h.id}')"
+                    class="text-gray-700 hover:text-red-400 transition-colors" title="Eliminar">
+                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+                </button>
+            </div>
         </div>
     `;
+}
+
+/**
+ * Abre el modal de historial para editar una entrada existente
+ */
+function editHistorial(id) {
+    const entrada = historialData.find(h => h.id === id);
+    if (!entrada) return;
+    openHistorialModal(null, null, entrada);
 }
 
 /**
@@ -1409,26 +1444,35 @@ function renderHistorialCard(h) {
  * @param {string|null} condicionId - ID de condición a preseleccionar
  * @param {string|null} condicionZona - Zona de la condición
  */
-function openHistorialModal(condicionId = null, condicionZona = null) {
+function openHistorialModal(condicionId = null, condicionZona = null, entradaExistente = null) {
     const modal = document.getElementById('modal-historial');
     if (!modal) return;
 
-    // Resetear formulario
-    document.getElementById('hist-titulo').value = '';
-    document.getElementById('hist-fecha').value = new Date().toISOString().split('T')[0];
-    document.getElementById('hist-notas').value = '';
-    document.getElementById('hist-medico').value = '';
-    document.getElementById('hist-especialidad').value = '';
-    document.getElementById('hist-diagnostico').value = '';
-    document.getElementById('hist-tratamiento').value = '';
-    document.getElementById('hist-nombre-medicamento').value = '';
-    document.getElementById('hist-dosis').value = '';
-    document.getElementById('hist-pauta').value = '';
-    document.getElementById('hist-fecha-fin').value = '';
-    document.getElementById('hist-tipo-analisis').value = '';
-    document.getElementById('hist-resultado').value = '';
-    document.getElementById('hist-nombre-vacuna').value = '';
-    document.getElementById('hist-siguiente-dosis').value = '';
+    editingHistorialId = entradaExistente ? entradaExistente.id : null;
+
+    const h = entradaExistente || {};
+    const hoy = new Date();
+    const fechaLocal = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+
+    document.getElementById('hist-titulo').value = h.titulo || '';
+    document.getElementById('hist-fecha').value = h.fecha || fechaLocal;
+    document.getElementById('hist-notas').value = h.notas || '';
+    document.getElementById('hist-medico').value = h.medico || '';
+    document.getElementById('hist-especialidad').value = h.especialidad || '';
+    document.getElementById('hist-diagnostico').value = h.diagnostico || '';
+    document.getElementById('hist-tratamiento').value = h.tratamiento || '';
+    document.getElementById('hist-nombre-medicamento').value = h.nombreMedicamento || '';
+    document.getElementById('hist-dosis').value = h.dosis || '';
+    document.getElementById('hist-pauta').value = h.pauta || '';
+    document.getElementById('hist-fecha-fin').value = h.fechaFin || '';
+    document.getElementById('hist-tipo-analisis').value = h.tipoAnalisis || '';
+    document.getElementById('hist-resultado').value = h.resultado || '';
+    document.getElementById('hist-nombre-vacuna').value = h.nombreVacuna || '';
+    document.getElementById('hist-siguiente-dosis').value = h.siguienteDosis || '';
+
+    // Título del modal
+    const titulo = modal.querySelector('h3');
+    if (titulo) titulo.textContent = entradaExistente ? 'EDITAR ENTRADA' : 'NUEVA ENTRADA';
 
     // Poblar selector de condiciones
     const select = document.getElementById('hist-condicion-select');
@@ -1438,13 +1482,14 @@ function openHistorialModal(condicionId = null, condicionZona = null) {
             const opt = document.createElement('option');
             opt.value = `${c.id}||${c.zona || ''}`;
             opt.textContent = `${c.nombre || c.id} — ${c.zona || 'sin zona'}`;
-            if (condicionId && c.id === condicionId) opt.selected = true;
+            const preselId = h.condicionId || condicionId;
+            if (preselId && c.id === preselId) opt.selected = true;
             select.appendChild(opt);
         });
     }
 
-    // Activar subtipo por defecto
-    setSubtipoHistorial('visita');
+    // Activar subtipo
+    setSubtipoHistorial(h.subtipo || 'visita');
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -1500,7 +1545,8 @@ async function saveHistorial() {
         return;
     }
 
-    const id = `historial_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const isEditing = !!editingHistorialId;
+    const id = isEditing ? editingHistorialId : `historial_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
     // Leer condición vinculada
     const condSelect = document.getElementById('hist-condicion-select')?.value || '';
@@ -1527,30 +1573,43 @@ async function saveHistorial() {
     };
 
     closeHistorialModal();
+    editingHistorialId = null;
 
     try {
-        const response = await fetch('/api/bahia/historial/crear', {
-            method: 'POST',
+        const url = isEditing ? `/api/bahia/historial/${id}` : '/api/bahia/historial/crear';
+        const method = isEditing ? 'PATCH' : 'POST';
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(entry),
         });
         const data = await response.json();
         if (data.success) {
-            historialData.unshift(entry);
+            if (isEditing) {
+                const idx = historialData.findIndex(h => h.id === id);
+                if (idx !== -1) historialData[idx] = entry;
+            } else {
+                historialData.unshift(entry);
+            }
             await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
-            showToast('Entrada registrada', 'success');
+            showToast(isEditing ? 'Entrada actualizada' : 'Entrada registrada', 'success');
         } else {
             showToast(data.error || 'Error al guardar', 'error');
         }
     } catch (error) {
         // Offline: añadir a sync queue
         await window.WhVaultDB.addToSyncQueue({
-            type: 'crear-historial',
-            endpoint: '/api/bahia/historial/crear',
-            method: 'POST',
+            type: isEditing ? 'editar-historial' : 'crear-historial',
+            endpoint: isEditing ? `/api/bahia/historial/${id}` : '/api/bahia/historial/crear',
+            method: isEditing ? 'PATCH' : 'POST',
             body: entry,
         });
-        historialData.unshift(entry);
+        if (isEditing) {
+            const idx = historialData.findIndex(h => h.id === id);
+            if (idx !== -1) historialData[idx] = entry;
+        } else {
+            historialData.unshift(entry);
+        }
         await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
         showToast('Guardado offline — se sincronizará al reconectar', 'warning');
     }
@@ -1581,9 +1640,309 @@ async function deleteHistorial(id) {
  * Placeholder para detalle (se puede expandir en el futuro)
  */
 function openHistorialDetalle(id) {
-    // Por ahora muestra las notas en un toast o se puede expandir el card inline
     const entry = historialData.find(h => h.id === id);
     if (entry && entry.notas) {
         showToast(entry.notas.substring(0, 100), 'info');
+    }
+}
+
+// ==========================================
+//  AGENDA — CITAS MÉDICAS
+// ==========================================
+
+const MESES_AGENDA = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function renderAgendaView() {
+    const listEl = document.getElementById('agenda-list');
+    const emptyEl = document.getElementById('agenda-empty');
+    const proximaCard = document.getElementById('proxima-cita-card');
+    if (!listEl) return;
+
+    const hoy = new Date().toISOString().split('T')[0];
+
+    const proximas = checkupsData
+        .filter(c => !c.completed && c.date >= hoy)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    const pasadas = checkupsData
+        .filter(c => c.completed || c.date < hoy)
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    // Próxima cita destacada
+    if (proximas.length > 0 && proximaCard) {
+        const prox = proximas[0];
+        const diasHasta = Math.ceil((new Date(prox.date) - new Date(hoy)) / 86400000);
+        document.getElementById('proxima-cita-titulo').textContent = prox.motivo || prox.name;
+        document.getElementById('proxima-cita-meta').textContent =
+            [prox.medico, prox.especialidad].filter(Boolean).join(' · ') +
+            (prox.time ? ` — ${prox.time}` : '');
+        document.getElementById('proxima-cita-countdown').textContent =
+            diasHasta === 0 ? '⚡ HOY' : diasHasta === 1 ? 'T-1d (mañana)' : `T-${diasHasta}d`;
+        const completarBtn = document.getElementById('proxima-completar-btn');
+        if (completarBtn) completarBtn.setAttribute('onclick', `completarCita('${prox.id}')`);
+        const editarBtn = document.getElementById('proxima-editar-btn');
+        if (editarBtn) editarBtn.setAttribute('onclick', `editCita('${prox.id}')`);
+        proximaCard.classList.remove('hidden');
+    } else if (proximaCard) {
+        proximaCard.classList.add('hidden');
+    }
+
+    if (proximas.length === 0 && pasadas.length === 0) {
+        listEl.innerHTML = '';
+        emptyEl?.classList.remove('hidden');
+        return;
+    }
+    emptyEl?.classList.add('hidden');
+
+    // Agrupar proximas por mes
+    let html = '';
+    const gruposProximas = {};
+    proximas.slice(1).forEach(c => {  // saltar la primera (ya está en próxima card)
+        const parts = c.date.split('-');
+        const key = `${MESES_AGENDA[parseInt(parts[1])-1]} ${parts[0]}`;
+        if (!gruposProximas[key]) gruposProximas[key] = [];
+        gruposProximas[key].push(c);
+    });
+
+    for (const [mes, items] of Object.entries(gruposProximas)) {
+        html += `<div class="text-gray-600 text-[10px] font-mono uppercase tracking-widest my-2 flex items-center gap-2">
+            <div style="flex:1;height:1px;background:linear-gradient(to right,#2d2d2d,transparent)"></div>
+            <span>${mes}</span>
+            <div style="flex:1;height:1px;background:linear-gradient(to left,#2d2d2d,transparent)"></div>
+        </div>`;
+        items.forEach(c => { html += renderCitaCard(c, false); });
+    }
+
+    // Sección pasadas/completadas
+    if (pasadas.length > 0) {
+        html += `<div class="text-gray-700 text-[10px] font-mono uppercase tracking-widest my-3 flex items-center gap-2 mt-4">
+            <div style="flex:1;height:1px;background:#1a1a1a"></div>
+            <span>Completadas</span>
+            <div style="flex:1;height:1px;background:#1a1a1a"></div>
+        </div>`;
+        pasadas.forEach(c => { html += renderCitaCard(c, true); });
+    }
+
+    listEl.innerHTML = html;
+}
+
+function renderCitaCard(c, completada) {
+    const parts = (c.date || '').split('-');
+    const fechaCorta = parts.length === 3
+        ? `${parseInt(parts[2])} ${MESES_AGENDA[parseInt(parts[1])-1] || '?'}`
+        : c.date;
+    const meta = [c.medico, c.especialidad].filter(Boolean).join(' · ');
+    const opacity = completada ? 'opacity-50' : '';
+
+    return `<div class="rounded border-l-2 p-3 mb-2 ${opacity}"
+        style="background:rgba(20,18,18,0.9); border-color: rgba(20,184,166,0.5);">
+        <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded" style="background:rgba(20,184,166,0.1);color:#14b8a6;">
+                        ${completada ? '✓' : '📅'} CITA
+                    </span>
+                    ${c.time ? `<span class="text-gray-600 text-[10px] font-mono">${c.time}</span>` : ''}
+                </div>
+                <div class="text-white text-sm font-semibold leading-tight">${c.motivo || c.name}</div>
+                ${meta ? `<div class="text-teal-400/60 text-[11px] mt-1">${meta}</div>` : ''}
+            </div>
+            <div class="text-gray-600 text-[11px] font-mono flex-shrink-0">${fechaCorta}</div>
+        </div>
+        <div class="flex gap-2 mt-1.5">
+            ${!completada ? `<button onclick="completarCita('${c.id}')" class="text-teal-700 hover:text-teal-400 transition-colors" title="Completar">
+                <span class="material-symbols-outlined" style="font-size:13px">check_circle</span>
+            </button>` : ''}
+            ${!completada ? `<button onclick="editCita('${c.id}')" class="text-gray-700 hover:text-blue-400 transition-colors" title="Editar">
+                <span class="material-symbols-outlined" style="font-size:13px">edit</span>
+            </button>` : ''}
+            <button onclick="deleteCita('${c.id}')" class="text-gray-700 hover:text-red-400 transition-colors" title="Eliminar">
+                <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+            </button>
+        </div>
+    </div>`;
+}
+
+/**
+ * Abre el modal de cita para editar una existente
+ */
+function editCita(id) {
+    const cita = checkupsData.find(c => c.id === id);
+    if (!cita) return;
+    openCitaModal(null, null, cita);
+}
+
+function openCitaModal(condicionId = null, condicionZona = null, citaExistente = null) {
+    const modal = document.getElementById('modal-cita');
+    if (!modal) return;
+
+    editingCitaId = citaExistente ? citaExistente.id : null;
+
+    const c = citaExistente || {};
+
+    document.getElementById('cita-motivo').value = c.motivo || c.name || '';
+    document.getElementById('cita-medico').value = c.medico || '';
+    document.getElementById('cita-especialidad').value = c.especialidad || '';
+    document.getElementById('cita-notas').value = c.notes || '';
+    document.getElementById('cita-hora').value = c.time || '09:00';
+    document.getElementById('cita-zona').value = c.zone || condicionZona || 'general';
+    document.getElementById('cita-frecuencia').value = c.frequency || 'none';
+
+    // Fecha: existente o hoy+7
+    if (c.date) {
+        document.getElementById('cita-fecha').value = c.date;
+    } else {
+        const fecha = new Date();
+        fecha.setDate(fecha.getDate() + 7);
+        const y = fecha.getFullYear(), m = String(fecha.getMonth()+1).padStart(2,'0'), d = String(fecha.getDate()).padStart(2,'0');
+        document.getElementById('cita-fecha').value = `${y}-${m}-${d}`;
+    }
+
+    // Título del modal
+    const titulo = modal.querySelector('h3');
+    if (titulo) titulo.textContent = citaExistente ? 'EDITAR CITA' : 'NUEVA CITA';
+
+    // Poblar condiciones
+    const sel = document.getElementById('cita-condicion');
+    sel.innerHTML = '<option value="">— Ninguna —</option>';
+    condicionesData.filter(cx => !cx.completada).forEach(cx => {
+        const opt = document.createElement('option');
+        opt.value = cx.id;
+        opt.textContent = `${cx.nombre} — ${cx.zona}`;
+        const preselId = c.condicionId || condicionId;
+        if (preselId && cx.id === preselId) opt.selected = true;
+        sel.appendChild(opt);
+    });
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeCitaModal() {
+    const modal = document.getElementById('modal-cita');
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+}
+
+async function saveCita() {
+    const motivo = document.getElementById('cita-motivo').value.trim();
+    const fecha = document.getElementById('cita-fecha').value;
+    if (!motivo || !fecha) {
+        showToast('Motivo y fecha son obligatorios', 'error');
+        return;
+    }
+
+    const isEditing = !!editingCitaId;
+    const condicionSel = document.getElementById('cita-condicion').value;
+    const condicionObj = condicionSel ? condicionesData.find(c => c.id === condicionSel) : null;
+    const existente = isEditing ? checkupsData.find(c => c.id === editingCitaId) : null;
+
+    const id = isEditing ? editingCitaId : `checkup_${Date.now()}_${Math.random().toString(36).substr(2,4)}`;
+    const payload = {
+        id,
+        zone: document.getElementById('cita-zona').value || 'general',
+        name: motivo,
+        date: fecha,
+        time: document.getElementById('cita-hora').value,
+        frequency: document.getElementById('cita-frecuencia').value,
+        notes: document.getElementById('cita-notas').value.trim(),
+        medico: document.getElementById('cita-medico').value.trim(),
+        especialidad: document.getElementById('cita-especialidad').value.trim(),
+        motivo,
+        condicionId: condicionSel || null,
+        condicionZona: condicionObj?.zona || null,
+        completed: existente?.completed || false,
+    };
+
+    closeCitaModal();
+    editingCitaId = null;
+
+    try {
+        const url = isEditing ? `/api/bahia/checkups/${id}` : '/api/bahia/checkups/crear';
+        const method = isEditing ? 'PATCH' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (isEditing) {
+                const idx = checkupsData.findIndex(c => c.id === id);
+                if (idx !== -1) checkupsData[idx] = { ...checkupsData[idx], ...payload };
+            } else {
+                checkupsData.push({ ...payload, completed: false, date: fecha });
+            }
+            updateGlobalStats();
+            renderAgendaView();
+            showToast(isEditing ? 'Cita actualizada' : 'Cita registrada', 'success');
+        } else {
+            showToast(data.error || 'Error al guardar', 'error');
+        }
+    } catch {
+        await addToSyncQueue(isEditing ? 'editar-cita' : 'crear-cita',
+            isEditing ? `/api/bahia/checkups/${id}` : '/api/bahia/checkups/crear',
+            isEditing ? 'PATCH' : 'POST', payload);
+        if (isEditing) {
+            const idx = checkupsData.findIndex(c => c.id === id);
+            if (idx !== -1) checkupsData[idx] = { ...checkupsData[idx], ...payload };
+        } else {
+            checkupsData.push({ ...payload, completed: false, date: fecha });
+        }
+        updateGlobalStats();
+        renderAgendaView();
+        showToast('Guardado (pendiente sync)', 'warning');
+    }
+}
+
+async function deleteCita(id) {
+    if (!confirm('¿Eliminar esta cita?')) return;
+    try {
+        const res = await fetch(`/api/bahia/checkups/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            checkupsData = checkupsData.filter(c => c.id !== id);
+            updateGlobalStats();
+            renderAgendaView();
+            showToast('Cita eliminada', 'success');
+        }
+    } catch {
+        showToast('Error al eliminar', 'error');
+    }
+}
+
+async function completarCita(id) {
+    try {
+        const res = await fetch(`/api/bahia/checkups/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completado: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const cita = checkupsData.find(c => c.id === id);
+            if (cita) cita.completed = true;
+            updateGlobalStats();
+            renderAgendaView();
+            showToast('Cita completada', 'success');
+
+            // Ofrecer crear entrada en historial
+            if (confirm('¿Registrar en el historial clínico?')) {
+                if (cita) {
+                    openHistorialModal(cita.condicionId, cita.condicionZona);
+                    // Pre-rellenar campos de visita
+                    setTimeout(() => {
+                        const titleEl = document.getElementById('hist-titulo');
+                        const medicoEl = document.getElementById('hist-medico');
+                        const espEl = document.getElementById('hist-especialidad');
+                        if (titleEl) titleEl.value = cita.motivo || cita.name;
+                        if (medicoEl) medicoEl.value = cita.medico || '';
+                        if (espEl) espEl.value = cita.especialidad || '';
+                    }, 100);
+                }
+            }
+        }
+    } catch {
+        showToast('Error al completar la cita', 'error');
     }
 }

@@ -1,7 +1,7 @@
-// Warhammer Vault - Service Worker v16.3
-// Full offline support + Background Sync + Cache-First IndexedDB + Bahía Médica (Condiciones)
+// Warhammer Vault - Service Worker v17.0
+// Full offline support + Background Sync + Cache-First IndexedDB + VoidMap hex blanco + aquila coplanar + click fix
 
-const CACHE_VERSION = 'v131';
+const CACHE_VERSION = 'v149';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 

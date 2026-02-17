@@ -411,47 +411,63 @@ async function completarMision(id, titulo, xp) {
     }
 }
 
+// ==========================================
+//  EDITAR DEADLINE - MODAL FUNCTIONS
+// ==========================================
+
+let editingMisionId = null;
+
 /**
- * Edit mission deadline via native date picker
+ * Open modal to edit mission deadline
  */
-async function editarDeadline(id, currentDeadline) {
-    const input = document.createElement('input');
-    input.type = 'date';
+function editarDeadline(id, currentDeadline) {
+    editingMisionId = id;
+    const modal = document.getElementById('modal-editar-deadline');
+    const input = document.getElementById('deadline-fecha');
+
     input.value = currentDeadline || '';
-    input.style.position = 'fixed';
-    input.style.opacity = '0';
-    input.style.top = '0';
-    document.body.appendChild(input);
+    modal.classList.remove('hidden');
 
-    input.addEventListener('change', async () => {
-        const newDeadline = input.value;
-        input.remove();
-        if (!newDeadline) return;
+    // Focus on date input after animation
+    setTimeout(() => {
+        input.focus();
+    }, 100);
+}
 
-        try {
-            const response = await fetch(`/api/misiones/${encodeURIComponent(id)}/deadline`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deadline: newDeadline })
-            });
-            const data = await response.json();
-            if (data.success) {
-                showToast('Deadline updated', 'success');
-                await cargarDatos();
-            } else {
-                showToast(data.error || 'Error', 'error');
-            }
-        } catch (error) {
-            console.error('[Bridge] Error updating deadline:', error);
-            showToast('Connection error', 'error');
+function closeEditDeadlineModal() {
+    const modal = document.getElementById('modal-editar-deadline');
+    modal.classList.add('hidden');
+    editingMisionId = null;
+}
+
+async function guardarDeadline() {
+    if (!editingMisionId) return;
+
+    const newDeadline = document.getElementById('deadline-fecha').value;
+    if (!newDeadline) {
+        showToast('Selecciona una fecha', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/misiones/${encodeURIComponent(editingMisionId)}/deadline`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deadline: newDeadline })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Deadline actualizado', 'success');
+            closeEditDeadlineModal();
+            await cargarDatos();
+        } else {
+            showToast(data.error || 'Error', 'error');
         }
-    });
-
-    input.addEventListener('blur', () => {
-        setTimeout(() => input.remove(), 200);
-    });
-
-    input.showPicker ? input.showPicker() : input.click();
+    } catch (error) {
+        console.error('[Bridge] Error updating deadline:', error);
+        showToast('Error de conexión', 'error');
+    }
 }
 
 // ==========================================

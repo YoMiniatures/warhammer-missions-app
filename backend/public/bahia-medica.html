@@ -336,28 +336,25 @@
 
         /* Edit mode styles */
         .edit-mode-btn {
-            position: fixed;
-            bottom: 5rem;
-            right: 1rem;
-            z-index: 100;
-            background: linear-gradient(145deg, #d41132, #a00d26);
-            border: 2px solid #d41132;
-            padding: 0.75rem 1rem;
+            background: rgba(212,17,50,0.15);
+            border: 1px solid rgba(212,17,50,0.5);
             border-radius: 4px;
-            color: white;
-            font-weight: bold;
+            color: rgba(212,17,50,0.8);
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(212, 17, 50, 0.4);
+            padding: 0.25rem 0.4rem;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
         }
         .edit-mode-btn:hover {
-            background: linear-gradient(145deg, #f01345, #d41132);
-            box-shadow: 0 6px 16px rgba(212, 17, 50, 0.6);
+            background: rgba(212,17,50,0.25);
+            border-color: #d41132;
+            color: #d41132;
         }
         .edit-mode-btn.active {
-            background: linear-gradient(145deg, #22c55e, #16a34a);
-            border-color: #22c55e;
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+            background: rgba(34,197,94,0.15);
+            border-color: rgba(34,197,94,0.6);
+            color: #22c55e;
         }
 
         .edit-controls {
@@ -565,20 +562,29 @@
             <p class="text-gray-500 text-[10px] mt-2 font-mono uppercase tracking-widest">/// MEDICAE POD - BIOSCANNER ACTIVE ///</p>
         </div>
 
-        <!-- === MAIN CONTENT === -->
-        <main class="flex-1 pb-24 px-3 lg:px-6 lg:pb-6">
+        <!-- === TOGGLE SCANNER / HISTORIAL / AGENDA (fuera del main para no ocupar espacio) === -->
+        <div class="flex items-center gap-1 mb-2 px-3 lg:px-6">
+            <button id="btn-scanner" onclick="setView('scanner')"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-medical-green bg-medical-green/10 text-medical-green">
+                <span class="material-symbols-outlined text-sm">body_system</span>SCANNER
+            </button>
+            <button id="btn-historial" onclick="setView('historial')"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">history_edu</span>HISTORIAL
+            </button>
+            <button id="btn-agenda" onclick="setView('agenda')"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">calendar_month</span>AGENDA
+            </button>
+            <div class="flex-1"></div>
+            <!-- Botón edit mode - solo visible en SCANNER -->
+            <button id="edit-mode-btn" class="edit-mode-btn hidden" onclick="toggleEditMode()" title="Editar posición de overlays">
+                <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+            </button>
+        </div>
 
-            <!-- === TOGGLE SCANNER / HISTORIAL === -->
-            <div class="flex gap-1 mb-4 px-1">
-                <button id="btn-scanner" onclick="setView('scanner')"
-                    class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-medical-green bg-medical-green/10 text-medical-green">
-                    <span class="material-symbols-outlined text-sm">body_system</span>SCANNER
-                </button>
-                <button id="btn-historial" onclick="setView('historial')"
-                    class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
-                    <span class="material-symbols-outlined text-sm">history_edu</span>HISTORIAL
-                </button>
-            </div>
+        <!-- === MAIN CONTENT (Scanner) === -->
+        <main id="scanner-main" class="flex-1 pb-24 px-3 lg:px-6 lg:pb-6">
 
             <!-- === POD VIEW (Default) === -->
             <div id="pod-view" class="space-y-4">
@@ -763,11 +769,6 @@
 
         </main>
 
-        <!-- === EDIT MODE BUTTON === -->
-        <button id="edit-mode-btn" class="edit-mode-btn" onclick="toggleEditMode()">
-            <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle;">edit</span>
-            EDIT MODE
-        </button>
 
         <!-- === EDIT CONTROLS PANEL === -->
         <div id="edit-controls" class="edit-controls">
@@ -805,28 +806,28 @@
         </div>
 
         <!-- === HISTORIAL CLÍNICO VIEW === -->
-        <div id="historial-view" class="hidden pb-6">
+        <div id="historial-view" class="hidden px-3 pb-28">
 
             <!-- Filtros por subtipo -->
-            <div id="historial-filters" class="flex gap-1.5 flex-wrap mb-4">
+            <div id="historial-filters" class="flex gap-1.5 overflow-x-auto hide-scrollbar mb-4 pb-1" style="flex-wrap: nowrap;">
                 <button onclick="setHistorialFiltro('todos')" data-filtro="todos"
-                    class="historial-filtro-btn active-filtro px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-white/20 text-white bg-white/10">
+                    class="historial-filtro-btn active-filtro flex-shrink-0 px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-white/20 text-white bg-white/10">
                     TODOS
                 </button>
                 <button onclick="setHistorialFiltro('visita')" data-filtro="visita"
-                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-blue-500 hover:text-blue-400">
+                    class="historial-filtro-btn flex-shrink-0 px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-blue-500 hover:text-blue-400">
                     <span class="material-symbols-outlined text-xs" style="vertical-align:middle">local_hospital</span> VISITA
                 </button>
                 <button onclick="setHistorialFiltro('medicamento')" data-filtro="medicamento"
-                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-green-500 hover:text-green-400">
+                    class="historial-filtro-btn flex-shrink-0 px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-green-500 hover:text-green-400">
                     <span class="material-symbols-outlined text-xs" style="vertical-align:middle">medication</span> MEDICAMENTO
                 </button>
                 <button onclick="setHistorialFiltro('analisis')" data-filtro="analisis"
-                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-amber-500 hover:text-amber-400">
+                    class="historial-filtro-btn flex-shrink-0 px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-amber-500 hover:text-amber-400">
                     <span class="material-symbols-outlined text-xs" style="vertical-align:middle">biotech</span> ANÁLISIS
                 </button>
                 <button onclick="setHistorialFiltro('vacuna')" data-filtro="vacuna"
-                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-purple-500 hover:text-purple-400">
+                    class="historial-filtro-btn flex-shrink-0 px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-purple-500 hover:text-purple-400">
                     <span class="material-symbols-outlined text-xs" style="vertical-align:middle">vaccines</span> VACUNA
                 </button>
             </div>
@@ -842,6 +843,39 @@
             </div>
         </div>
 
+        <!-- === AGENDA VIEW (oculta por defecto) === -->
+        <div id="agenda-view" class="hidden px-3 pb-28">
+            <!-- Próxima cita destacada -->
+            <div id="proxima-cita-card" class="hidden mb-4 rounded-lg p-4 border"
+                style="background: rgba(20,184,166,0.05); border-color: rgba(20,184,166,0.3);">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="material-symbols-outlined text-teal-400 text-base">calendar_month</span>
+                    <span class="text-teal-400 text-[10px] font-mono font-bold uppercase tracking-widest">Próxima cita</span>
+                </div>
+                <div id="proxima-cita-titulo" class="text-white font-bold text-sm mb-1"></div>
+                <div id="proxima-cita-meta" class="text-teal-400/70 text-[11px] font-mono"></div>
+                <div id="proxima-cita-countdown" class="text-teal-400 text-[10px] font-mono mt-2 font-bold"></div>
+                <div class="flex gap-2 mt-3">
+                    <button id="proxima-completar-btn" onclick="" class="flex-1 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest border border-teal-500 text-teal-400 hover:bg-teal-500/10 transition-all">
+                        <span class="material-symbols-outlined text-xs align-middle">check_circle</span> Completada
+                    </button>
+                    <button id="proxima-editar-btn" onclick="" class="px-3 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest border border-gray-700 text-gray-500 hover:border-blue-500/50 hover:text-blue-400 transition-all">
+                        <span class="material-symbols-outlined text-xs align-middle">edit</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Timeline citas -->
+            <div id="agenda-list" class="space-y-2"></div>
+
+            <!-- Empty state -->
+            <div id="agenda-empty" class="hidden text-center py-12">
+                <span class="material-symbols-outlined text-4xl text-gray-700">calendar_month</span>
+                <p class="text-gray-500 text-xs font-mono uppercase tracking-widest mt-2">/// Sin citas programadas ///</p>
+                <p class="text-gray-600 text-[10px] mt-1">Pulsa + para registrar una cita médica</p>
+            </div>
+        </div>
+
         <!-- FAB añadir historial (visible solo en vista historial) -->
         <button id="fab-historial"
             onclick="openHistorialModal()"
@@ -849,6 +883,107 @@
             style="background: #1d4ed8; border: 1.5px solid #3b82f6;">
             <span class="material-symbols-outlined text-white text-2xl">add</span>
         </button>
+
+        <!-- FAB añadir cita (visible solo en vista agenda) -->
+        <button id="fab-agenda"
+            onclick="openCitaModal()"
+            class="hidden fixed bottom-20 right-4 lg:bottom-8 lg:right-8 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center z-30 transition-all active:scale-95"
+            style="background: #0f766e; border: 1.5px solid #14b8a6;">
+            <span class="material-symbols-outlined text-white text-2xl">add</span>
+        </button>
+
+        <!-- === MODAL NUEVA CITA MÉDICA === -->
+        <div id="modal-cita" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeCitaModal()">
+            <div class="modal-content" style="max-height: 90dvh; overflow-y: auto;">
+                <div class="modal-header p-4 flex items-center justify-between sticky top-0 bg-[#1a1718] z-10">
+                    <h3 class="text-white font-bold text-lg uppercase tracking-wide">Nueva Cita</h3>
+                    <button onclick="closeCitaModal()" class="text-gray-400 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4">
+                    <!-- Motivo -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Motivo / Nombre *</label>
+                        <input id="cita-motivo" type="text" placeholder="Ej: Revisión cardiológica anual..."
+                            class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none">
+                    </div>
+                    <!-- Fecha y Hora -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Fecha *</label>
+                            <input id="cita-fecha" type="date"
+                                class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Hora</label>
+                            <input id="cita-hora" type="time" value="09:00"
+                                class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <!-- Médico y Especialidad -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Médico / Centro</label>
+                            <input id="cita-medico" type="text" placeholder="Dr. García..."
+                                class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Especialidad</label>
+                            <input id="cita-especialidad" type="text" placeholder="Cardiología..."
+                                class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <!-- Zona y Frecuencia -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Zona corporal</label>
+                            <select id="cita-zona" class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+                                <option value="general">General</option>
+                                <option value="cabeza">Cabeza</option>
+                                <option value="torso">Torso</option>
+                                <option value="abdomen">Abdomen</option>
+                                <option value="pelvis">Pelvis</option>
+                                <option value="brazos">Brazos</option>
+                                <option value="manos">Manos</option>
+                                <option value="piernas">Piernas</option>
+                                <option value="pies">Pies</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Frecuencia</label>
+                            <select id="cita-frecuencia" class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+                                <option value="none">No se repite</option>
+                                <option value="monthly">Mensual</option>
+                                <option value="quarterly">Trimestral</option>
+                                <option value="biannual">Semestral</option>
+                                <option value="yearly">Anual</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Notas -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Notas</label>
+                        <textarea id="cita-notas" rows="2" placeholder="Observaciones adicionales..."
+                            class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none resize-none"></textarea>
+                    </div>
+                    <!-- Condición vinculada -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Vincular a condición (opcional)</label>
+                        <select id="cita-condicion" class="w-full bg-[#111] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+                            <option value="">— Ninguna —</option>
+                        </select>
+                    </div>
+                    <!-- Acciones -->
+                    <div class="flex gap-3 pt-2">
+                        <button onclick="closeCitaModal()" class="flex-1 py-2.5 rounded border border-[#2d2d2d] text-gray-400 text-sm font-mono uppercase tracking-widest hover:border-gray-500 transition-all">Cancelar</button>
+                        <button onclick="saveCita()"
+                            class="flex-1 py-2.5 rounded text-sm font-mono font-bold uppercase tracking-widest transition-all"
+                            style="background: #14b8a6; color: #fff; border: 1.5px solid #0d9488;">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- === MODAL HISTORIAL CLÍNICO === -->
         <div id="modal-historial" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeHistorialModal()">

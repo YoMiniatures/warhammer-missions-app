@@ -370,9 +370,9 @@
                 <span class="material-symbols-outlined">auto_stories</span>
                 <span class="nav-label">Notas</span>
             </a>
-            <a href="inquisicion.html" class="nav-item">
-                <span class="material-symbols-outlined">analytics</span>
-                <span class="nav-label">Inquis.</span>
+            <a href="bahia-medica.html" class="nav-item">
+                <span class="material-symbols-outlined">medical_services</span>
+                <span class="nav-label">Médica</span>
             </a>
         </div>
 
@@ -622,6 +622,29 @@
             </div>
         </div>
 
+        <!-- === MODAL EDITAR DEADLINE === -->
+        <div id="modal-editar-deadline" class="modal-overlay hidden" onclick="if(event.target===this)closeEditDeadlineModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="text-white font-bold text-lg uppercase tracking-wide">Editar Deadline</h3>
+                    <button onclick="closeEditDeadlineModal()" class="text-gray-500 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Nueva Fecha</label>
+                        <input type="date" id="deadline-fecha" class="form-input">
+                    </div>
+                    <p class="text-gray-500 text-xs font-mono mt-2">Selecciona una nueva fecha límite para la misión</p>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeEditDeadlineModal()" class="btn-secondary">Cancelar</button>
+                    <button onclick="guardarDeadline()" class="btn-primary">Guardar</button>
+                </div>
+            </div>
+        </div>
+
         <!-- === RECORDADORA MODAL === -->
         <div id="modal-recordadora" class="hidden fixed inset-0 z-[70] flex items-end justify-center">
             <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="cerrarRecordadora()"></div>
@@ -691,9 +714,9 @@
                 <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
             </a>
-            <a href="inquisicion.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
-                <span class="material-symbols-outlined text-2xl mb-0.5">analytics</span>
-                <span class="text-[9px] font-bold tracking-widest uppercase">Inquis.</span>
+            <a href="bahia-medica.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">medical_services</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Médica</span>
             </a>
         </nav>
     </div>

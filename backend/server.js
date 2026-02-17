@@ -3324,14 +3324,19 @@ app.get('/api/bahia/checkups', async (req, res) => {
             checkups.push({
               id: data.id || file.replace('.md', ''),
               zone: data.zona || 'general',
-              name: data.nombre || '',
+              name: data.nombre || data.motivo || '',
               date: normalizarFecha(data.fecha),
               time: data.hora || '',
               doctor: data.doctor || '',
               notes: data.notas || '',
               frequency: data.frecuencia || 'none',
               completed: data.completado || false,
-              created: normalizarFecha(data['fecha-creacion'])
+              created: normalizarFecha(data['fecha-creacion']),
+              medico: data.medico || data.doctor || '',
+              especialidad: data.especialidad || '',
+              motivo: data.motivo || data.nombre || '',
+              condicionId: data['condicion-id'] || null,
+              condicionZona: data['condicion-zona'] || null,
             });
           }
         } catch (e) {
@@ -3353,7 +3358,8 @@ app.get('/api/bahia/checkups', async (req, res) => {
 // POST /api/bahia/checkups/crear - Crear nueva cita médica
 app.post('/api/bahia/checkups/crear', async (req, res) => {
   try {
-    const { id, zone, name, date, time, doctor, notes, frequency, completed } = req.body;
+    const { id, zone, name, date, time, doctor, notes, frequency, completed,
+            medico, especialidad, motivo, condicionId, condicionZona } = req.body;
 
     if (!id || !zone || !name || !date) {
       return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
@@ -3384,13 +3390,18 @@ app.post('/api/bahia/checkups/crear', async (req, res) => {
       tipo: 'checkup-medico',
       id: id,
       zona: zone,
-      nombre: name,
+      nombre: motivo || name,
+      motivo: motivo || name,
       fecha: new Date(date),
       hora: time || '09:00',
-      doctor: doctor || '',
+      doctor: doctor || medico || '',
+      medico: medico || doctor || '',
+      especialidad: especialidad || '',
       notas: notes || '',
       frecuencia: frequency || 'none',
       completado: completed || false,
+      'condicion-id': condicionId || null,
+      'condicion-zona': condicionZona || null,
       'fecha-creacion': new Date()
     };
 
@@ -3459,6 +3470,45 @@ app.delete('/api/bahia/checkups/:id', async (req, res) => {
     res.status(404).json({ success: false, error: 'Checkup no encontrado' });
   } catch (error) {
     console.error('Error en DELETE /api/bahia/checkups/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/bahia/checkups/:id - Actualizar cita médica
+app.patch('/api/bahia/checkups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    for (const año of [2025, 2026]) {
+      const rutaBahia = getRutaBahiaMedica(año);
+      if (!rutaBahia) continue;
+
+      const filename = `CHECKUP-${id}.md`;
+      const filepath = path.join(rutaBahia, filename);
+
+      if (existsSync(filepath)) {
+        const content = readFileSync(filepath, 'utf-8');
+        const { data, content: body } = matter(content);
+
+        // Aplicar updates permitidos
+        if (updates.completado !== undefined) data.completado = updates.completado;
+        if (updates.fecha !== undefined) data.fecha = new Date(updates.fecha);
+        if (updates.hora !== undefined) data.hora = updates.hora;
+        if (updates.medico !== undefined) { data.medico = updates.medico; data.doctor = updates.medico; }
+        if (updates.especialidad !== undefined) data.especialidad = updates.especialidad;
+        if (updates.motivo !== undefined) { data.motivo = updates.motivo; data.nombre = updates.motivo; }
+        if (updates.notas !== undefined) data.notas = updates.notas;
+        if (updates.condicionId !== undefined) data['condicion-id'] = updates.condicionId;
+
+        await fs.writeFile(filepath, matter.stringify(body, data), 'utf-8');
+        return res.json({ success: true, id });
+      }
+    }
+
+    res.status(404).json({ success: false, error: 'Checkup no encontrado' });
+  } catch (error) {
+    console.error('Error en PATCH /api/bahia/checkups/:id:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

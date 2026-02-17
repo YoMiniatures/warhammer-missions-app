@@ -126,6 +126,27 @@ function updateConnectionUI(online) {
 //  API CALLS
 // ==========================================
 
+async function loadCheckupsParaAuspex() {
+    try {
+        const res = await fetch('/api/bahia/checkups');
+        const data = await res.json();
+        return (data.checkups || [])
+            .filter(c => !c.completed)
+            .map(c => ({
+                tipo: 'checkup-medico',
+                id: c.id,
+                titulo: c.motivo || c.name || 'Cita médica',
+                fecha: c.date,
+                hora: c.time,
+                medico: c.medico || c.doctor || '',
+                especialidad: c.especialidad || '',
+                condicionId: c.condicionId || null,
+            }));
+    } catch {
+        return [];
+    }
+}
+
 async function cargarEventos() {
     try {
         const DB = window.WhVaultDB;
@@ -142,6 +163,14 @@ async function cargarEventos() {
                 updateDataFreshnessUI(!cached.isFresh, cached.lastUpdate);
                 if (!cached.isFresh) {
                     fetchAndCacheEventos(true);
+                } else {
+                    // Cache is fresh - still merge checkups (they're not cached in IndexedDB)
+                    loadCheckupsParaAuspex().then(checkups => {
+                        if (checkups.length > 0) {
+                            eventos = [...cached.data, ...checkups];
+                            renderPicker();
+                        }
+                    });
                 }
                 return;
             } else if (cached.data && cached.data.length > 0) {
@@ -170,8 +199,10 @@ async function fetchAndCacheEventos(silent = false) {
         console.log('[Auspex] API response:', data);
 
         if (data.success && data.eventos) {
-            eventos = data.eventos;
-            console.log('[Auspex] Loaded', eventos.length, 'eventos');
+            // Merge checkups médicos en el timeline
+            const checkups = await loadCheckupsParaAuspex();
+            eventos = [...data.eventos, ...checkups];
+            console.log('[Auspex] Loaded', data.eventos.length, 'eventos +', checkups.length, 'citas médicas');
 
             if (DB) {
                 const eventosWithUniqueIds = data.eventos.map((e, idx) => ({
@@ -233,8 +264,9 @@ function updateDataFreshnessUI(isStale, lastUpdate) {
 // ==========================================
 
 function getEventoTipo(evento) {
-    const tipo = evento.frontmatter?.tipo || 'evento';
+    const tipo = evento.frontmatter?.tipo || evento.tipo || 'evento';
     const prioridad = evento.frontmatter?.prioridad;
+    if (tipo === 'checkup-medico') return 'medical';
     if (prioridad === 'alta' || prioridad === 'urgente') return 'urgent';
     if (tipo === 'cumpleaños') return 'birthday';
     if (tipo === 'vacaciones') return 'holiday';
@@ -243,9 +275,12 @@ function getEventoTipo(evento) {
 }
 
 function getEventoBadge(evento) {
-    const tipo = evento.frontmatter?.tipo || 'evento';
+    const tipo = evento.frontmatter?.tipo || evento.tipo || 'evento';
     const prioridad = evento.frontmatter?.prioridad;
 
+    if (tipo === 'checkup-medico') {
+        return `<span class="text-teal-400 text-[9px] font-mono border border-teal-400 px-1.5 py-0.5">MÉDICA</span>`;
+    }
     if (prioridad === 'alta' || prioridad === 'urgente') {
         return `<span class="text-primary text-[9px] font-mono border border-primary px-1.5 py-0.5">PRIORITY</span>`;
     }
@@ -347,6 +382,7 @@ function renderPicker() {
                 else if (tipoEvento === 'urgent') cardClasses += ' urgent';
                 else if (tipoEvento === 'birthday') cardClasses += ' birthday';
                 else if (tipoEvento === 'holiday') cardClasses += ' holiday';
+                else if (tipoEvento === 'medical') cardClasses += ' medical';
 
                 const descripcion = evento.content?.trim() || evento.frontmatter?.descripcion || '';
 
@@ -361,7 +397,7 @@ function renderPicker() {
                                 ${getEventoBadge(evento)}
                             </div>
                             <h3 class="text-white font-bold text-sm leading-tight ${esPasado ? 'opacity-50' : ''}">${evento.titulo}</h3>
-                            ${descripcion ? `<p class="text-gray-500 text-[11px] mt-1 line-clamp-1">${descripcion}</p>` : ''}
+                            ${evento.medico ? `<p class="text-teal-400/60 text-[11px] mt-0.5 line-clamp-1">${evento.medico}${evento.especialidad ? ' · ' + evento.especialidad : ''}</p>` : descripcion ? `<p class="text-gray-500 text-[11px] mt-1 line-clamp-1">${descripcion}</p>` : ''}
                             ${!esPasado && diasHasta > 0 ? `<div class="mt-1 text-[9px] text-auspex-green/40 font-mono">T-${diasHasta}d</div>` : ''}
                         </div>
                     </div>
