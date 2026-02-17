@@ -103,6 +103,12 @@ let currentZone = null;
 let checkupsData = [];
 let condicionesData = [];
 
+// Historial clínico
+let historialData = [];
+let historialFiltroActivo = 'todos';
+let historialSubtipoActivo = 'visita';
+const LS_BAHIA_VIEW = 'bahia-view-activa';
+
 // ==========================================
 //  INITIALIZATION
 // ==========================================
@@ -116,12 +122,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load data
     await loadCheckupsData();
     await loadCondicionesData();
+    await loadHistorialData();
 
     // Update stats
     updateGlobalStats();
 
     // Setup connection listeners
     setupConnectionListeners();
+
+    // Restore view from localStorage
+    setView(localStorage.getItem(LS_BAHIA_VIEW) || 'scanner');
 
     // Setup fecha imperial
     updateFechaImperial();
@@ -1184,4 +1194,396 @@ function stopDragPanel() {
     panelDragData.isDragging = false;
     document.removeEventListener('mousemove', dragPanel);
     document.removeEventListener('mouseup', stopDragPanel);
+}
+
+// ==========================================
+//  HISTORIAL CLÍNICO
+// ==========================================
+
+// Colores e iconos por subtipo
+const HISTORIAL_CONFIG = {
+    visita:      { color: '#3b82f6', label: 'VISITA',      icon: 'local_hospital' },
+    medicamento: { color: '#22c55e', label: 'MEDICAMENTO',  icon: 'medication' },
+    analisis:    { color: '#f59e0b', label: 'ANÁLISIS',     icon: 'biotech' },
+    vacuna:      { color: '#a855f7', label: 'VACUNA',       icon: 'vaccines' },
+};
+
+// Meses abreviados para agrupación
+const MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+/**
+ * Carga el historial desde la API o cache
+ */
+async function loadHistorialData() {
+    try {
+        const año = new Date().getFullYear();
+        const response = await fetch(`/api/bahia/historial?ano=${año}`);
+        const data = await response.json();
+        if (data.success) {
+            historialData = data.historial || [];
+            await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
+        }
+    } catch (error) {
+        console.warn('[Bahía] Error cargando historial, usando cache:', error.message);
+        await loadHistorialFromCache();
+    }
+    renderHistorialList();
+}
+
+async function loadHistorialFromCache() {
+    try {
+        const cached = await window.WhVaultDB.getFromStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO);
+        historialData = cached || [];
+    } catch (e) {
+        historialData = [];
+    }
+}
+
+/**
+ * Toggle entre vista SCANNER e HISTORIAL
+ */
+function setView(view) {
+    const podView = document.getElementById('pod-view');
+    const zoneView = document.getElementById('zone-view');
+    const historialView = document.getElementById('historial-view');
+    const fabCheckup = document.getElementById('fab-add');
+    const fabHistorial = document.getElementById('fab-historial');
+    const btnScanner = document.getElementById('btn-scanner');
+    const btnHistorial = document.getElementById('btn-historial');
+    if (!podView || !historialView) return;
+
+    if (view === 'historial') {
+        podView.classList.add('hidden');
+        zoneView?.classList.add('hidden');
+        historialView.classList.remove('hidden');
+        fabCheckup?.classList.add('hidden');
+        fabHistorial?.classList.remove('hidden');
+        // Estilos botones toggle
+        btnScanner?.classList.remove('border-medical-green', 'bg-medical-green/10', 'text-medical-green');
+        btnScanner?.classList.add('border-[#2d2d2d]', 'text-gray-500');
+        btnHistorial?.classList.add('border-blue-500', 'bg-blue-500/10', 'text-blue-400');
+        btnHistorial?.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        localStorage.setItem(LS_BAHIA_VIEW, 'historial');
+        renderHistorialList();
+    } else {
+        historialView.classList.add('hidden');
+        fabHistorial?.classList.add('hidden');
+        podView.classList.remove('hidden');
+        // Restaurar FAB checkup si estamos en zona
+        if (currentZone) {
+            fabCheckup?.classList.remove('hidden');
+        }
+        // Estilos botones toggle
+        btnHistorial?.classList.remove('border-blue-500', 'bg-blue-500/10', 'text-blue-400');
+        btnHistorial?.classList.add('border-[#2d2d2d]', 'text-gray-500');
+        btnScanner?.classList.add('border-medical-green', 'bg-medical-green/10', 'text-medical-green');
+        btnScanner?.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        localStorage.setItem(LS_BAHIA_VIEW, 'scanner');
+    }
+}
+
+/**
+ * Activa un filtro de subtipo y re-renderiza
+ */
+function setHistorialFiltro(filtro) {
+    historialFiltroActivo = filtro;
+    // Actualizar estilos de botones
+    document.querySelectorAll('.historial-filtro-btn').forEach(btn => {
+        const f = btn.dataset.filtro;
+        if (f === filtro) {
+            btn.classList.add('border-white/20', 'text-white', 'bg-white/10');
+            btn.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+        } else {
+            btn.classList.remove('border-white/20', 'text-white', 'bg-white/10');
+            btn.classList.add('border-[#2d2d2d]', 'text-gray-500');
+        }
+    });
+    renderHistorialList();
+}
+
+/**
+ * Renderiza el timeline de historial agrupado por mes
+ */
+function renderHistorialList() {
+    const container = document.getElementById('historial-list');
+    const emptyState = document.getElementById('historial-empty');
+    if (!container) return;
+
+    // Filtrar
+    let items = historialData;
+    if (historialFiltroActivo !== 'todos') {
+        items = items.filter(h => h.subtipo === historialFiltroActivo);
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = '';
+        emptyState?.classList.remove('hidden');
+        return;
+    }
+    emptyState?.classList.add('hidden');
+
+    // Agrupar por mes
+    const grupos = {};
+    items.forEach(h => {
+        const fecha = h.fecha || '';
+        const parts = fecha.split('-');
+        const key = parts.length >= 2
+            ? `${MESES_ES[parseInt(parts[1], 10) - 1] || '?'} ${parts[0]}`
+            : 'Sin fecha';
+        if (!grupos[key]) grupos[key] = [];
+        grupos[key].push(h);
+    });
+
+    let html = '';
+    for (const [mes, entradas] of Object.entries(grupos)) {
+        html += `<div class="text-[10px] font-mono text-gray-600 tracking-widest uppercase mt-3 mb-2 flex items-center gap-2">
+            <div class="flex-1 h-px bg-gradient-to-r from-[#2d2d2d] to-transparent"></div>
+            <span>${mes}</span>
+            <div class="flex-1 h-px bg-gradient-to-l from-[#2d2d2d] to-transparent"></div>
+        </div>`;
+        entradas.forEach(h => {
+            html += renderHistorialCard(h);
+        });
+    }
+
+    container.innerHTML = html;
+}
+
+/**
+ * Genera HTML de una card del historial
+ */
+function renderHistorialCard(h) {
+    const cfg = HISTORIAL_CONFIG[h.subtipo] || HISTORIAL_CONFIG.visita;
+    const fechaParts = (h.fecha || '').split('-');
+    const fechaStr = fechaParts.length === 3
+        ? `${parseInt(fechaParts[2])} ${MESES_ES[parseInt(fechaParts[1], 10) - 1] || '?'}`
+        : h.fecha || '';
+
+    // Línea de detalle específico por subtipo
+    let detalle = '';
+    if (h.subtipo === 'visita' && (h.medico || h.especialidad)) {
+        detalle = [h.medico, h.especialidad].filter(Boolean).join(' · ');
+    } else if (h.subtipo === 'medicamento' && h.nombreMedicamento) {
+        detalle = `${h.nombreMedicamento}${h.dosis ? ` — ${h.dosis}` : ''}${h.pauta ? ` (${h.pauta})` : ''}`;
+    } else if (h.subtipo === 'analisis' && h.tipoAnalisis) {
+        detalle = `${h.tipoAnalisis}${h.resultado ? ` → ${h.resultado}` : ''}`;
+    } else if (h.subtipo === 'vacuna' && h.nombreVacuna) {
+        detalle = h.nombreVacuna;
+    }
+
+    const zonaTag = h.condicionZona
+        ? `<span style="background:rgba(255,255,255,0.06); color:#9ca3af; font-size:0.6em; padding:1px 6px; border-radius:3px; font-family:monospace; letter-spacing:1px; text-transform:uppercase;">${h.condicionZona}</span>`
+        : '';
+
+    return `
+        <div class="relative rounded-lg p-3 mb-2 cursor-pointer hover:opacity-90 transition-opacity group"
+             style="background: rgba(20,18,18,0.9); border: 1.5px solid ${cfg.color}22; border-left: 3px solid ${cfg.color};"
+             onclick="openHistorialDetalle('${h.id}')">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-base flex-shrink-0" style="color: ${cfg.color};">${cfg.icon}</span>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span style="background: ${cfg.color}22; color: ${cfg.color}; font-size:0.55em; font-weight:700; padding:1px 5px; border-radius:2px; letter-spacing:1px; text-transform:uppercase; font-family:monospace;">${cfg.label}</span>
+                            ${zonaTag}
+                        </div>
+                        <p class="text-white text-sm font-semibold leading-snug mt-0.5 truncate">${h.titulo || '(sin título)'}</p>
+                        ${detalle ? `<p class="text-gray-400 text-xs mt-0.5 truncate">${detalle}</p>` : ''}
+                    </div>
+                </div>
+                <div class="text-right flex-shrink-0">
+                    <p class="text-gray-500 text-[10px] font-mono">${fechaStr}</p>
+                    <button onclick="event.stopPropagation(); deleteHistorial('${h.id}')"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity mt-1 text-gray-600 hover:text-red-400">
+                        <span class="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                </div>
+            </div>
+            ${h.notas ? `<p class="text-gray-500 text-[10px] mt-1.5 italic line-clamp-1">${h.notas}</p>` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Abre el modal de nueva entrada de historial
+ * @param {string|null} condicionId - ID de condición a preseleccionar
+ * @param {string|null} condicionZona - Zona de la condición
+ */
+function openHistorialModal(condicionId = null, condicionZona = null) {
+    const modal = document.getElementById('modal-historial');
+    if (!modal) return;
+
+    // Resetear formulario
+    document.getElementById('hist-titulo').value = '';
+    document.getElementById('hist-fecha').value = new Date().toISOString().split('T')[0];
+    document.getElementById('hist-notas').value = '';
+    document.getElementById('hist-medico').value = '';
+    document.getElementById('hist-especialidad').value = '';
+    document.getElementById('hist-diagnostico').value = '';
+    document.getElementById('hist-tratamiento').value = '';
+    document.getElementById('hist-nombre-medicamento').value = '';
+    document.getElementById('hist-dosis').value = '';
+    document.getElementById('hist-pauta').value = '';
+    document.getElementById('hist-fecha-fin').value = '';
+    document.getElementById('hist-tipo-analisis').value = '';
+    document.getElementById('hist-resultado').value = '';
+    document.getElementById('hist-nombre-vacuna').value = '';
+    document.getElementById('hist-siguiente-dosis').value = '';
+
+    // Poblar selector de condiciones
+    const select = document.getElementById('hist-condicion-select');
+    if (select) {
+        select.innerHTML = '<option value="">— Ninguna —</option>';
+        condicionesData.filter(c => !c.completada).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = `${c.id}||${c.zona || ''}`;
+            opt.textContent = `${c.nombre || c.id} — ${c.zona || 'sin zona'}`;
+            if (condicionId && c.id === condicionId) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+
+    // Activar subtipo por defecto
+    setSubtipoHistorial('visita');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeHistorialModal() {
+    const modal = document.getElementById('modal-historial');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+/**
+ * Cambia el subtipo activo en el modal y muestra/oculta campos
+ */
+function setSubtipoHistorial(subtipo) {
+    historialSubtipoActivo = subtipo;
+    const subtipos = ['visita', 'medicamento', 'analisis', 'vacuna'];
+    const colores = { visita: '#3b82f6', medicamento: '#22c55e', analisis: '#f59e0b', vacuna: '#a855f7' };
+
+    subtipos.forEach(s => {
+        const btn = document.getElementById(`hist-btn-${s}`);
+        const campos = document.getElementById(`hist-campos-${s}`);
+        if (btn) {
+            if (s === subtipo) {
+                btn.style.borderColor = colores[s];
+                btn.style.color = colores[s];
+                btn.style.background = `${colores[s]}18`;
+            } else {
+                btn.style.borderColor = '';
+                btn.style.color = '';
+                btn.style.background = '';
+            }
+        }
+        if (campos) {
+            campos.classList.toggle('hidden', s !== subtipo);
+        }
+    });
+}
+
+/**
+ * Guarda una nueva entrada del historial
+ */
+async function saveHistorial() {
+    const titulo = document.getElementById('hist-titulo')?.value?.trim();
+    const fecha = document.getElementById('hist-fecha')?.value;
+    const notas = document.getElementById('hist-notas')?.value?.trim();
+    const subtipo = historialSubtipoActivo;
+
+    if (!titulo || !fecha) {
+        showToast('Título y fecha son obligatorios', 'error');
+        return;
+    }
+
+    const id = `historial_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+    // Leer condición vinculada
+    const condSelect = document.getElementById('hist-condicion-select')?.value || '';
+    const [condicionId, condicionZona] = condSelect ? condSelect.split('||') : [null, null];
+
+    // Recoger campos por subtipo
+    const entry = {
+        id, subtipo, fecha, titulo, notas: notas || '',
+        condicionId: condicionId || null,
+        condicionZona: condicionZona || null,
+        medico: document.getElementById('hist-medico')?.value?.trim() || null,
+        especialidad: document.getElementById('hist-especialidad')?.value?.trim() || null,
+        diagnostico: document.getElementById('hist-diagnostico')?.value?.trim() || null,
+        tratamiento: document.getElementById('hist-tratamiento')?.value?.trim() || null,
+        nombreMedicamento: document.getElementById('hist-nombre-medicamento')?.value?.trim() || null,
+        dosis: document.getElementById('hist-dosis')?.value?.trim() || null,
+        pauta: document.getElementById('hist-pauta')?.value?.trim() || null,
+        fechaFin: document.getElementById('hist-fecha-fin')?.value || null,
+        tipoAnalisis: document.getElementById('hist-tipo-analisis')?.value?.trim() || null,
+        resultado: document.getElementById('hist-resultado')?.value?.trim() || null,
+        nombreVacuna: document.getElementById('hist-nombre-vacuna')?.value?.trim() || null,
+        siguienteDosis: document.getElementById('hist-siguiente-dosis')?.value || null,
+        completada: false,
+    };
+
+    closeHistorialModal();
+
+    try {
+        const response = await fetch('/api/bahia/historial/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entry),
+        });
+        const data = await response.json();
+        if (data.success) {
+            historialData.unshift(entry);
+            await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
+            showToast('Entrada registrada', 'success');
+        } else {
+            showToast(data.error || 'Error al guardar', 'error');
+        }
+    } catch (error) {
+        // Offline: añadir a sync queue
+        await window.WhVaultDB.addToSyncQueue({
+            type: 'crear-historial',
+            endpoint: '/api/bahia/historial/crear',
+            method: 'POST',
+            body: entry,
+        });
+        historialData.unshift(entry);
+        await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
+        showToast('Guardado offline — se sincronizará al reconectar', 'warning');
+    }
+
+    renderHistorialList();
+}
+
+/**
+ * Elimina una entrada del historial
+ */
+async function deleteHistorial(id) {
+    if (!confirm('¿Eliminar esta entrada del historial?')) return;
+    try {
+        const response = await fetch(`/api/bahia/historial/${id}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success || response.ok) {
+            historialData = historialData.filter(h => h.id !== id);
+            await window.WhVaultDB.saveToStore(window.WhVaultDB.STORES.HISTORIAL_MEDICO, historialData);
+            showToast('Entrada eliminada', 'success');
+            renderHistorialList();
+        }
+    } catch (error) {
+        showToast('Error al eliminar', 'error');
+    }
+}
+
+/**
+ * Placeholder para detalle (se puede expandir en el futuro)
+ */
+function openHistorialDetalle(id) {
+    // Por ahora muestra las notas en un toast o se puede expandir el card inline
+    const entry = historialData.find(h => h.id === id);
+    if (entry && entry.notas) {
+        showToast(entry.notas.substring(0, 100), 'info');
+    }
 }

@@ -3661,6 +3661,228 @@ app.delete('/api/bahia/condiciones/:id', async (req, res) => {
 });
 
 // ============================================
+// BAHÍA MÉDICA - HISTORIAL CLÍNICO
+// ============================================
+
+function getRutaHistorial(año) {
+  return path.join(getRutaBahiaMedica(año), 'HISTORIAL');
+}
+
+// GET /api/bahia/historial - Lista entradas del historial clínico
+app.get('/api/bahia/historial', async (req, res) => {
+  try {
+    const año = parseInt(req.query.ano) || new Date().getFullYear();
+    const zona = req.query.zona || null;
+    const subtipo = req.query.subtipo || null;
+
+    const rutaHistorial = getRutaHistorial(año);
+
+    // Si no existe la carpeta, devolver vacío
+    if (!existsSync(rutaHistorial)) {
+      return res.json({ success: true, historial: [] });
+    }
+
+    const archivos = readdirSync(rutaHistorial).filter(f => f.startsWith('HISTORIAL-') && f.endsWith('.md'));
+
+    const historial = [];
+    for (const archivo of archivos) {
+      try {
+        const contenido = readFileSync(path.join(rutaHistorial, archivo), 'utf-8');
+        const { data } = matter(contenido);
+
+        if (data.tipo !== 'historial-medico') continue;
+        if (zona && data['condicion-zona'] !== zona) continue;
+        if (subtipo && data.subtipo !== subtipo) continue;
+
+        historial.push({
+          id: data.id || archivo.replace('.md', ''),
+          subtipo: data.subtipo || 'visita',
+          fecha: normalizarFecha(data.fecha),
+          titulo: data.titulo || '',
+          notas: data.notas || '',
+          condicionId: data['condicion-id'] || null,
+          condicionZona: data['condicion-zona'] || null,
+          // Visita
+          medico: data.medico || null,
+          especialidad: data.especialidad || null,
+          diagnostico: data.diagnostico || null,
+          tratamiento: data.tratamiento || null,
+          // Medicamento
+          nombreMedicamento: data['nombre-medicamento'] || null,
+          dosis: data.dosis || null,
+          pauta: data.pauta || null,
+          fechaFin: normalizarFecha(data['fecha-fin']),
+          // Análisis
+          tipoAnalisis: data['tipo-analisis'] || null,
+          resultado: data.resultado || null,
+          // Vacuna
+          nombreVacuna: data['nombre-vacuna'] || null,
+          siguienteDosis: normalizarFecha(data['siguiente-dosis']),
+          completada: data.completada || false,
+          fechaCreacion: normalizarFecha(data['fecha-creacion']),
+        });
+      } catch (e) {
+        console.error(`Error parseando ${archivo}:`, e.message);
+      }
+    }
+
+    // Ordenar por fecha desc
+    historial.sort((a, b) => {
+      const fa = a.fecha || '';
+      const fb = b.fecha || '';
+      return fb.localeCompare(fa);
+    });
+
+    res.json({ success: true, historial });
+  } catch (error) {
+    console.error('Error en GET /api/bahia/historial:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/bahia/historial/crear - Crear nueva entrada del historial
+app.post('/api/bahia/historial/crear', async (req, res) => {
+  try {
+    const {
+      id, subtipo, fecha, titulo, notas,
+      condicionId, condicionZona,
+      // Visita
+      medico, especialidad, diagnostico, tratamiento,
+      // Medicamento
+      nombreMedicamento, dosis, pauta, fechaFin,
+      // Análisis
+      tipoAnalisis, resultado,
+      // Vacuna
+      nombreVacuna, siguienteDosis,
+    } = req.body;
+
+    if (!id || !subtipo || !fecha || !titulo) {
+      return res.status(400).json({ success: false, error: 'Faltan campos requeridos: id, subtipo, fecha, titulo' });
+    }
+
+    const subtiposValidos = ['visita', 'medicamento', 'analisis', 'vacuna'];
+    if (!subtiposValidos.includes(subtipo)) {
+      return res.status(400).json({ success: false, error: 'subtipo debe ser: visita, medicamento, analisis o vacuna' });
+    }
+
+    const año = parseInt(fecha.split('-')[0]) || new Date().getFullYear();
+    const rutaHistorial = getRutaHistorial(año);
+    await fs.mkdir(rutaHistorial, { recursive: true });
+
+    const filename = `HISTORIAL-${id}.md`;
+    const filepath = path.join(rutaHistorial, filename);
+
+    const hoy = new Date();
+    const fechaCreacion = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+
+    const frontmatter = {
+      tipo: 'historial-medico',
+      id,
+      subtipo,
+      fecha,
+      titulo,
+      notas: notas || '',
+      'condicion-id': condicionId || null,
+      'condicion-zona': condicionZona || null,
+      medico: medico || null,
+      especialidad: especialidad || null,
+      diagnostico: diagnostico || null,
+      tratamiento: tratamiento || null,
+      'nombre-medicamento': nombreMedicamento || null,
+      dosis: dosis || null,
+      pauta: pauta || null,
+      'fecha-fin': fechaFin || null,
+      'tipo-analisis': tipoAnalisis || null,
+      resultado: resultado || null,
+      'nombre-vacuna': nombreVacuna || null,
+      'siguiente-dosis': siguienteDosis || null,
+      completada: false,
+      'fecha-creacion': fechaCreacion,
+    };
+
+    const subtipoLabel = { visita: 'Visita Médica', medicamento: 'Medicamento', analisis: 'Análisis / Prueba', vacuna: 'Vacuna' };
+    const body = `# 📋 ${subtipoLabel[subtipo] || subtipo}: ${titulo}\n\n> **Fecha**: ${fecha}${condicionZona ? ` | **Zona**: ${condicionZona}` : ''}\n\n## Notas\n\n${notas || '*(sin notas adicionales)*'}\n`;
+
+    const fileContent = matter.stringify(body, frontmatter);
+    await fs.writeFile(filepath, fileContent, 'utf-8');
+
+    console.log(`✅ Historial creado: ${filename}`);
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error en POST /api/bahia/historial/crear:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/bahia/historial/:id - Actualizar entrada del historial
+app.patch('/api/bahia/historial/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    let filepath = null;
+    for (const año of [2025, 2026]) {
+      const ruta = getRutaHistorial(año);
+      const candidato = path.join(ruta, `HISTORIAL-${id}.md`);
+      if (existsSync(candidato)) {
+        filepath = candidato;
+        break;
+      }
+    }
+
+    if (!filepath) {
+      return res.status(404).json({ success: false, error: 'Entrada de historial no encontrada' });
+    }
+
+    const contenido = readFileSync(filepath, 'utf-8');
+    const { data, content } = matter(contenido);
+
+    // Actualizar campos permitidos
+    const campoMap = {
+      completada: 'completada',
+      notas: 'notas',
+      diagnostico: 'diagnostico',
+      tratamiento: 'tratamiento',
+      resultado: 'resultado',
+      fechaFin: 'fecha-fin',
+      siguienteDosis: 'siguiente-dosis',
+    };
+    for (const [jsKey, yamlKey] of Object.entries(campoMap)) {
+      if (updates[jsKey] !== undefined) data[yamlKey] = updates[jsKey];
+    }
+
+    const newContent = matter.stringify(content, data);
+    await fs.writeFile(filepath, newContent, 'utf-8');
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error en PATCH /api/bahia/historial/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/bahia/historial/:id - Eliminar entrada del historial
+app.delete('/api/bahia/historial/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    for (const año of [2025, 2026]) {
+      const ruta = getRutaHistorial(año);
+      const candidato = path.join(ruta, `HISTORIAL-${id}.md`);
+      if (existsSync(candidato)) {
+        await fs.unlink(candidato);
+        return res.json({ success: true });
+      }
+    }
+
+    res.status(404).json({ success: false, error: 'Entrada de historial no encontrada' });
+  } catch (error) {
+    console.error('Error en DELETE /api/bahia/historial/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // SERVER START
 // ============================================
 

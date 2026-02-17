@@ -568,6 +568,18 @@
         <!-- === MAIN CONTENT === -->
         <main class="flex-1 pb-24 px-3 lg:px-6 lg:pb-6">
 
+            <!-- === TOGGLE SCANNER / HISTORIAL === -->
+            <div class="flex gap-1 mb-4 px-1">
+                <button id="btn-scanner" onclick="setView('scanner')"
+                    class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-medical-green bg-medical-green/10 text-medical-green">
+                    <span class="material-symbols-outlined text-sm">body_system</span>SCANNER
+                </button>
+                <button id="btn-historial" onclick="setView('historial')"
+                    class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                    <span class="material-symbols-outlined text-sm">history_edu</span>HISTORIAL
+                </button>
+            </div>
+
             <!-- === POD VIEW (Default) === -->
             <div id="pod-view" class="space-y-4">
                 <!-- Medicae Pod with Body Scanner -->
@@ -790,6 +802,207 @@
             </div>
             <button class="edit-control-btn" onclick="copyOverlayCSS()">📋 CSS</button>
             <button class="edit-control-btn" onclick="deselectOverlay()">❌</button>
+        </div>
+
+        <!-- === HISTORIAL CLÍNICO VIEW === -->
+        <div id="historial-view" class="hidden pb-6">
+
+            <!-- Filtros por subtipo -->
+            <div id="historial-filters" class="flex gap-1.5 flex-wrap mb-4">
+                <button onclick="setHistorialFiltro('todos')" data-filtro="todos"
+                    class="historial-filtro-btn active-filtro px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-white/20 text-white bg-white/10">
+                    TODOS
+                </button>
+                <button onclick="setHistorialFiltro('visita')" data-filtro="visita"
+                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-blue-500 hover:text-blue-400">
+                    <span class="material-symbols-outlined text-xs" style="vertical-align:middle">local_hospital</span> VISITA
+                </button>
+                <button onclick="setHistorialFiltro('medicamento')" data-filtro="medicamento"
+                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-green-500 hover:text-green-400">
+                    <span class="material-symbols-outlined text-xs" style="vertical-align:middle">medication</span> MEDICAMENTO
+                </button>
+                <button onclick="setHistorialFiltro('analisis')" data-filtro="analisis"
+                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-amber-500 hover:text-amber-400">
+                    <span class="material-symbols-outlined text-xs" style="vertical-align:middle">biotech</span> ANÁLISIS
+                </button>
+                <button onclick="setHistorialFiltro('vacuna')" data-filtro="vacuna"
+                    class="historial-filtro-btn px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-purple-500 hover:text-purple-400">
+                    <span class="material-symbols-outlined text-xs" style="vertical-align:middle">vaccines</span> VACUNA
+                </button>
+            </div>
+
+            <!-- Timeline renderizada por JS -->
+            <div id="historial-list" class="space-y-2"></div>
+
+            <!-- Empty state -->
+            <div id="historial-empty" class="hidden py-12 text-center">
+                <span class="material-symbols-outlined text-5xl text-gray-700 mb-3 block">history_edu</span>
+                <p class="text-gray-500 text-xs font-mono uppercase tracking-widest">/// Sin entradas en el historial ///</p>
+                <p class="text-gray-600 text-[10px] mt-1">Registra tu primera consulta, medicamento, análisis o vacuna</p>
+            </div>
+        </div>
+
+        <!-- FAB añadir historial (visible solo en vista historial) -->
+        <button id="fab-historial"
+            onclick="openHistorialModal()"
+            class="hidden fixed bottom-20 right-4 lg:bottom-8 lg:right-8 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center z-30 transition-all active:scale-95"
+            style="background: #1d4ed8; border: 1.5px solid #3b82f6;">
+            <span class="material-symbols-outlined text-white text-2xl">add</span>
+        </button>
+
+        <!-- === MODAL HISTORIAL CLÍNICO === -->
+        <div id="modal-historial" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeHistorialModal()">
+            <div class="modal-content" style="max-height: 90dvh; overflow-y: auto;">
+                <div class="modal-header p-4 flex items-center justify-between sticky top-0 bg-[#1a1718] z-10">
+                    <h3 class="text-white font-bold text-lg uppercase tracking-wide">Nueva Entrada</h3>
+                    <button onclick="closeHistorialModal()" class="text-gray-400 hover:text-white">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4">
+                    <!-- Selector subtipo -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-2">Tipo de entrada</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="hist-btn-visita" onclick="setSubtipoHistorial('visita')"
+                                class="hist-subtipo-btn flex items-center gap-2 px-3 py-2 rounded border border-[#2d2d2d] text-gray-500 text-sm transition-all hover:border-blue-500 hover:text-blue-400">
+                                <span class="material-symbols-outlined text-base">local_hospital</span>Visita
+                            </button>
+                            <button id="hist-btn-medicamento" onclick="setSubtipoHistorial('medicamento')"
+                                class="hist-subtipo-btn flex items-center gap-2 px-3 py-2 rounded border border-[#2d2d2d] text-gray-500 text-sm transition-all hover:border-green-500 hover:text-green-400">
+                                <span class="material-symbols-outlined text-base">medication</span>Medicamento
+                            </button>
+                            <button id="hist-btn-analisis" onclick="setSubtipoHistorial('analisis')"
+                                class="hist-subtipo-btn flex items-center gap-2 px-3 py-2 rounded border border-[#2d2d2d] text-gray-500 text-sm transition-all hover:border-amber-500 hover:text-amber-400">
+                                <span class="material-symbols-outlined text-base">biotech</span>Análisis
+                            </button>
+                            <button id="hist-btn-vacuna" onclick="setSubtipoHistorial('vacuna')"
+                                class="hist-subtipo-btn flex items-center gap-2 px-3 py-2 rounded border border-[#2d2d2d] text-gray-500 text-sm transition-all hover:border-purple-500 hover:text-purple-400">
+                                <span class="material-symbols-outlined text-base">vaccines</span>Vacuna
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Campos comunes -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Título *</label>
+                        <input type="text" id="hist-titulo" placeholder="Ej: Revisión cardiológica anual..."
+                            class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-medical-green">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Fecha *</label>
+                        <input type="date" id="hist-fecha"
+                            class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-medical-green">
+                    </div>
+
+                    <!-- Campos específicos: VISITA -->
+                    <div id="hist-campos-visita" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Médico</label>
+                            <input type="text" id="hist-medico" placeholder="Nombre del médico"
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Especialidad</label>
+                            <input type="text" id="hist-especialidad" placeholder="Cardiología, Traumatología..."
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Diagnóstico</label>
+                            <input type="text" id="hist-diagnostico" placeholder="Diagnóstico o conclusión"
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Tratamiento</label>
+                            <input type="text" id="hist-tratamiento" placeholder="Tratamiento prescrito"
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Campos específicos: MEDICAMENTO -->
+                    <div id="hist-campos-medicamento" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Nombre del medicamento</label>
+                            <input type="text" id="hist-nombre-medicamento" placeholder="Ibuprofeno, Paracetamol..."
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Dosis</label>
+                                <input type="text" id="hist-dosis" placeholder="500mg, 1 comprimido..."
+                                    class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Pauta</label>
+                                <input type="text" id="hist-pauta" placeholder="Cada 8h, 1 vez/día..."
+                                    class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Fecha fin</label>
+                            <input type="date" id="hist-fecha-fin"
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500">
+                        </div>
+                    </div>
+
+                    <!-- Campos específicos: ANÁLISIS -->
+                    <div id="hist-campos-analisis" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Tipo de análisis</label>
+                            <input type="text" id="hist-tipo-analisis" placeholder="Analítica sangre, ECG, Radiografía..."
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Resultado</label>
+                            <input type="text" id="hist-resultado" placeholder="Normal, valores alterados..."
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Campos específicos: VACUNA -->
+                    <div id="hist-campos-vacuna" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Nombre de la vacuna</label>
+                            <input type="text" id="hist-nombre-vacuna" placeholder="Gripe, Tétanos, COVID..."
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Próxima dosis</label>
+                            <input type="date" id="hist-siguiente-dosis"
+                                class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500">
+                        </div>
+                    </div>
+
+                    <!-- Notas comunes -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Notas</label>
+                        <textarea id="hist-notas" rows="2" placeholder="Observaciones adicionales..."
+                            class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-medical-green resize-none"></textarea>
+                    </div>
+
+                    <!-- Vincular a condición -->
+                    <div>
+                        <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Vincular a condición (opcional)</label>
+                        <select id="hist-condicion-select"
+                            class="w-full bg-[#0f0f10] border border-[#2d2d2d] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-medical-green">
+                            <option value="">— Ninguna —</option>
+                        </select>
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="flex gap-3 pt-2">
+                        <button onclick="closeHistorialModal()"
+                            class="flex-1 py-2 border border-[#2d2d2d] rounded text-gray-400 text-sm hover:text-white hover:border-gray-500 transition-colors">
+                            Cancelar
+                        </button>
+                        <button onclick="saveHistorial()"
+                            class="flex-1 py-2 rounded text-sm font-bold transition-colors text-black"
+                            style="background: #22c55e;">
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- === MODAL ADD CHECKUP === -->

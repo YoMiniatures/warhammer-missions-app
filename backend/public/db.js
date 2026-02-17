@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'wh-vault-db';
-const DB_VERSION = 10; // v10: Condiciones Médicas (Lesiones + Afecciones) store
+const DB_VERSION = 11; // v11: Historial Médico store
 
 // Stores
 const STORES = {
@@ -23,7 +23,8 @@ const STORES = {
     PLANETAS: 'planetas', // VoidMap - planetas del sistema
     REVIEWS: 'reviews', // Inquisición - reviews semanales
     CITAS_MEDICAS: 'citas-medicas', // Bahía Médica - checkups médicos
-    CONDICIONES_MEDICAS: 'condiciones-medicas' // Bahía Médica - lesiones y afecciones
+    CONDICIONES_MEDICAS: 'condiciones-medicas', // Bahía Médica - lesiones y afecciones
+    HISTORIAL_MEDICO: 'historial-medico' // Bahía Médica - historial clínico
 };
 
 // Freshness threshold: 5 minutes
