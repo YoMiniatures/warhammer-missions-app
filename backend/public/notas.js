@@ -1,57 +1,43 @@
 /**
  * Notas Sagradas - Cuaderno de Bitácora
  * Sincronización con Obsidian + Fallback local
+ *
+ * NOTE: setFechaImperial, escapeHtml, formatTimeAgo, showToast
+ * are defined in cargo.html shared utilities block
  */
 
 let notasItems = [];
 let editingNotaId = null;
 let currentTipo = 'parchment'; // parchment | metallic
-// Use isOnline from db.js (already declared globally)
-let pendingSync = []; // Notas pendientes de sincronizar
+let pendingSync = [];
 
-// DOM refs
-const vistaLista = document.getElementById('vista-lista');
-const vistaEditor = document.getElementById('vista-editor');
+// DOM refs (prefixed to avoid conflicts with cargo.js)
 const notasList = document.getElementById('notas-list');
-const emptyState = document.getElementById('empty-state');
-const countBar = document.getElementById('count-bar');
+const notasEmptyState = document.getElementById('notas-empty-state');
+const notasCountBar = document.getElementById('notas-count-bar');
 const notasCount = document.getElementById('notas-count');
 const editorTitle = document.getElementById('editor-title');
 const editorContent = document.getElementById('editor-content');
 const tipoLabel = document.getElementById('tipo-label');
 const btnTipo = document.getElementById('btn-tipo');
+const notasEditor = document.getElementById('notas-editor');
 
 // ── INIT ──────────────────────────────────────────────
+// Note: DOMContentLoaded listener is shared with cargo.js
+// We use a separate init call that cargo.html triggers after both scripts load
 document.addEventListener('DOMContentLoaded', async () => {
-    setFechaImperial();
+    console.log('[Notas] Initializing...');
     setupOnlineListeners();
     await cargarNotas();
 });
 
-function setFechaImperial() {
-    const el = document.getElementById('fecha-imperial');
-    if (!el) return;
-    const now = new Date();
-    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-    const diaSemana = dias[now.getDay()];
-    const dia = String(now.getDate()).padStart(2, '0');
-    const mes = meses[now.getMonth()];
-    el.textContent = `+++ ${diaSemana} ${dia} ${mes} +++`;
-}
-
 function setupOnlineListeners() {
-    // Use db.js online state change callback
     if (window.WhVaultDB && window.WhVaultDB.onOnlineStateChange) {
         window.WhVaultDB.onOnlineStateChange(async (online) => {
             if (online) {
                 console.log('[Notas] Online - syncing...');
-                showToast('Vox-link restored', 'success');
                 await syncPendingNotas();
                 await cargarNotas();
-            } else {
-                console.log('[Notas] Offline mode');
-                showToast('Offline mode - local storage active', 'error');
             }
         });
     }
@@ -60,22 +46,18 @@ function setupOnlineListeners() {
 // ── LOAD & RENDER ─────────────────────────────────────
 async function cargarNotas() {
     try {
-        if (isOnline) {
-            // Try to load from API (Obsidian)
+        if (typeof isOnline !== 'undefined' && isOnline) {
             const response = await fetch('/api/notas');
             const data = await response.json();
 
             if (data.success) {
                 notasItems = data.notas;
                 console.log(`[Notas] Loaded ${notasItems.length} from Obsidian`);
-
-                // Cache in IndexedDB for offline use
                 await cacheNotasLocally(notasItems);
             } else {
                 throw new Error(data.error);
             }
         } else {
-            // Offline: Load from IndexedDB cache
             notasItems = await window.WhVaultDB.getAllNotas();
             console.log(`[Notas] Loaded ${notasItems.length} from local cache (offline)`);
         }
@@ -92,10 +74,8 @@ async function cargarNotas() {
     renderNotas();
 }
 
-// Cache notas from API to IndexedDB for offline access
 async function cacheNotasLocally(notas) {
     try {
-        // Clear old cache
         const existingNotas = await window.WhVaultDB.getAllNotas();
         for (const nota of existingNotas) {
             if (!nota.pendingSync) {
@@ -103,9 +83,7 @@ async function cacheNotasLocally(notas) {
             }
         }
 
-        // Add fresh data from API
         for (const nota of notas) {
-            // Check if already exists locally with pending sync
             const existing = existingNotas.find(n => n.id === nota.id && n.pendingSync);
             if (!existing) {
                 await window.WhVaultDB.addNota({
@@ -126,21 +104,23 @@ async function cacheNotasLocally(notas) {
 }
 
 function renderNotas() {
+    if (!notasList || !notasEmptyState || !notasCountBar) return;
+
     if (notasItems.length === 0) {
-        emptyState.classList.remove('hidden');
+        notasEmptyState.classList.remove('hidden');
         notasList.classList.add('hidden');
-        countBar.classList.add('hidden');
-        updateOffloadState();
+        notasCountBar.classList.add('hidden');
+        updateNotasOffloadState();
         return;
     }
 
-    emptyState.classList.add('hidden');
+    notasEmptyState.classList.add('hidden');
     notasList.classList.remove('hidden');
-    countBar.classList.remove('hidden');
+    notasCountBar.classList.remove('hidden');
     notasCount.textContent = notasItems.length;
 
     notasList.innerHTML = notasItems.map(nota => renderNotaCard(nota)).join('');
-    updateOffloadState();
+    updateNotasOffloadState();
 }
 
 function renderNotaCard(nota) {
@@ -197,7 +177,6 @@ function renderNotaCard(nota) {
 // ── EDITOR ─────────────────────────────────────────────
 function abrirEditor(id) {
     if (id) {
-        // Edit existing
         const nota = notasItems.find(n => n.id === id);
         if (!nota) return;
         editingNotaId = id;
@@ -205,7 +184,6 @@ function abrirEditor(id) {
         editorContent.value = nota.content;
         currentTipo = nota.tipo || 'parchment';
     } else {
-        // New note
         editingNotaId = null;
         editorTitle.value = '';
         editorContent.value = '';
@@ -213,14 +191,12 @@ function abrirEditor(id) {
     }
 
     updateTipoUI();
-    vistaLista.classList.add('hidden');
-    vistaEditor.classList.remove('hidden');
+    if (notasEditor) notasEditor.classList.remove('hidden');
     editorTitle.focus();
 }
 
 function cerrarEditor() {
-    vistaEditor.classList.add('hidden');
-    vistaLista.classList.remove('hidden');
+    if (notasEditor) notasEditor.classList.add('hidden');
     editingNotaId = null;
 }
 
@@ -230,6 +206,7 @@ function toggleTipo() {
 }
 
 function updateTipoUI() {
+    if (!btnTipo) return;
     const icon = btnTipo.querySelector('.material-symbols-outlined');
     if (currentTipo === 'parchment') {
         tipoLabel.textContent = 'Parchment';
@@ -251,9 +228,10 @@ async function guardarNota() {
         return;
     }
 
+    const isOnlineNow = typeof isOnline !== 'undefined' ? isOnline : navigator.onLine;
+
     try {
-        if (isOnline) {
-            // Save to Obsidian via API
+        if (isOnlineNow) {
             if (editingNotaId) {
                 const response = await fetch(`/api/notas/${encodeURIComponent(editingNotaId)}`, {
                     method: 'PUT',
@@ -282,7 +260,6 @@ async function guardarNota() {
                 showToast('New scroll sealed in Obsidian', 'success');
             }
         } else {
-            // Offline: Save to IndexedDB with pending flag
             if (editingNotaId) {
                 await window.WhVaultDB.updateNota(editingNotaId, {
                     title: title || 'Sin designación',
@@ -306,7 +283,6 @@ async function guardarNota() {
         await cargarNotas();
     } catch (e) {
         console.error('[Notas] Error saving:', e);
-        // Fallback to local if API fails
         try {
             if (editingNotaId) {
                 await window.WhVaultDB.updateNota(editingNotaId, {
@@ -358,7 +334,6 @@ async function syncPendingNotas() {
                 const data = await response.json();
 
                 if (data.success) {
-                    // Remove from local after successful sync
                     await window.WhVaultDB.removeNota(nota.id);
                     console.log(`[Notas] Synced: ${nota.title}`);
                 }
@@ -384,8 +359,10 @@ function confirmarEliminar(id) {
 }
 
 async function eliminarNota(id) {
+    const isOnlineNow = typeof isOnline !== 'undefined' ? isOnline : navigator.onLine;
+
     try {
-        if (isOnline) {
+        if (isOnlineNow) {
             const response = await fetch(`/api/notas/${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
@@ -399,7 +376,6 @@ async function eliminarNota(id) {
         await cargarNotas();
     } catch (e) {
         console.error('[Notas] Error deleting:', e);
-        // Try local delete as fallback
         try {
             await window.WhVaultDB.removeNota(id);
             showToast('Scroll purged locally', 'success');
@@ -412,7 +388,6 @@ async function eliminarNota(id) {
 
 async function eliminarNotaActual() {
     if (!editingNotaId) {
-        // New note, just close
         cerrarEditor();
         return;
     }
@@ -430,7 +405,6 @@ async function offloadNotas() {
         return;
     }
 
-    // Get local notes with pending sync
     let localNotas = [];
     try {
         localNotas = await window.WhVaultDB.getAllNotas();
@@ -443,7 +417,8 @@ async function offloadNotas() {
         return;
     }
 
-    const btn = document.getElementById('btn-offload');
+    const btn = document.getElementById('notas-btn-offload');
+    if (!btn) return;
     btn.disabled = true;
     const originalHTML = btn.innerHTML;
     btn.innerHTML = `
@@ -493,9 +468,9 @@ async function offloadNotas() {
     }
 }
 
-function updateOffloadState() {
-    const section = document.getElementById('offload-section');
-    // Show offload button ONLY if there are notes with pendingSync: true
+function updateNotasOffloadState() {
+    const section = document.getElementById('notas-offload-section');
+    if (!section) return;
     window.WhVaultDB.getAllNotas().then(localNotas => {
         const pendingNotas = localNotas.filter(n => n.pendingSync === true);
         if (pendingNotas.length > 0) {
@@ -508,24 +483,7 @@ function updateOffloadState() {
     });
 }
 
-// ── UTILS ──────────────────────────────────────────────
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
-function formatTimeAgo(timestamp) {
-    if (!timestamp) return 'Unknown';
-    const diff = Date.now() - timestamp;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-    return new Date(timestamp).toLocaleDateString('es-ES');
-}
-
+// ── NOTAS-SPECIFIC UTILS ────────────────────────────────
 function formatDateCode(timestamp) {
     if (!timestamp) return '-.-.M3';
     const d = new Date(timestamp);
@@ -534,24 +492,11 @@ function formatDateCode(timestamp) {
     return `${month}.${day.toString().padStart(2, '0')}.M3`;
 }
 
-// ── TOAST ──────────────────────────────────────────────
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    const icon = document.getElementById('toast-icon');
-    const text = document.getElementById('toast-text');
-
-    text.textContent = message;
-
-    if (type === 'success') {
-        icon.textContent = 'verified';
-        icon.className = 'material-symbols-outlined text-lg text-data-green';
-        text.className = 'text-data-green';
-    } else {
-        icon.textContent = 'error';
-        icon.className = 'material-symbols-outlined text-lg text-primary';
-        text.className = 'text-primary';
-    }
-
-    toast.classList.remove('hidden');
-    setTimeout(() => toast.classList.add('hidden'), 2500);
-}
+// Make functions globally available
+window.abrirEditor = abrirEditor;
+window.cerrarEditor = cerrarEditor;
+window.guardarNota = guardarNota;
+window.toggleTipo = toggleTipo;
+window.eliminarNotaActual = eliminarNotaActual;
+window.confirmarEliminar = confirmarEliminar;
+window.offloadNotas = offloadNotas;

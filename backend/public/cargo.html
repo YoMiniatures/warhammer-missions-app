@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -26,10 +26,14 @@
                         "background-dark": "#0f0f10",
                         "surface-dark": "#1a1718",
                         "surface-accent": "#261e1f",
+                        "parchment": "#d9c5a3",
+                        "parchment-dark": "#1a1814",
                     },
                     fontFamily: {
                         "display": ["Space Grotesk", "sans-serif"],
                         "body": ["Noto Sans", "sans-serif"],
+                        "handwritten": ["Cormorant Garamond", "serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
                     },
                 },
             },
@@ -39,7 +43,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
@@ -77,6 +81,7 @@
         /* Data glow */
         .data-glow { text-shadow: 0 0 10px rgba(34, 197, 94, 0.9), 0 0 20px rgba(34, 197, 94, 0.4); }
         .retro-glow { text-shadow: 0 0 5px rgba(212, 17, 50, 0.5); }
+        .gold-glow { text-shadow: 0 0 8px rgba(197, 160, 101, 0.6); }
 
         /* Crate shadow for FAB */
         .crate-shadow {
@@ -126,7 +131,7 @@
             border-radius: 2px;
             font-size: 0.875rem;
             font-weight: bold;
-            z-index: 100;
+            z-index: 200;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             animation: toastIn 0.3s ease;
             display: flex;
@@ -141,6 +146,29 @@
         .modal-backdrop {
             background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(4px);
+        }
+
+        /* Notas-specific styles */
+        .green-button-glow { box-shadow: 0 0 20px rgba(34,197,94,0.4), inset 0 0 10px rgba(34,197,94,0.2); }
+        .parchment-texture {
+            background-color: #d9c5a3;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.1), 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        .metallic-slate {
+            background: linear-gradient(145deg, #261e1f, #1a1718);
+            border: 1px solid #3d2f31;
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
+        }
+        .parchment-slate {
+            background-color: #1a1814;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+            background-blend-mode: multiply;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+        .gothic-border {
+            border-image: linear-gradient(to right, transparent, #c5a065, transparent) 1;
+            border-bottom: 1px solid;
         }
 
         /* Desktop nav styles */
@@ -204,9 +232,9 @@
                 <span class="material-symbols-outlined">inventory_2</span>
                 <span class="nav-label">Cargo</span>
             </a>
-            <a href="notas.html" class="nav-item">
-                <span class="material-symbols-outlined">auto_stories</span>
-                <span class="nav-label">Notas</span>
+            <a href="economato.html" class="nav-item">
+                <span class="material-symbols-outlined">account_balance</span>
+                <span class="nav-label">Econo.</span>
             </a>
             <a href="bahia-medica.html" class="nav-item">
                 <span class="material-symbols-outlined">medical_services</span>
@@ -258,35 +286,96 @@
             <p class="text-gray-500 text-[10px] mt-2 font-mono uppercase tracking-widest">/// CARGO BAY: DATA-RELIQUARY ///</p>
         </div>
 
-        <!-- === CARGO COUNT INDICATOR === -->
-        <div id="cargo-count-bar" class="mx-4 mb-4 hidden">
-            <div class="bg-[#1a1718] border border-data-green/30 p-3 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-data-green text-lg">inventory_2</span>
-                    <span class="text-data-green text-[10px] font-mono font-bold uppercase tracking-wider">
-                        <span id="cargo-count">0</span> DATA-BLOCKS STORED
-                    </span>
+        <!-- === TOGGLE CARGO / NOTAS === -->
+        <div class="flex items-center gap-1 mb-2 px-4 lg:px-6">
+            <button id="btn-cargo" onclick="setCargoView('cargo')"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-data-green bg-data-green/10 text-data-green">
+                <span class="material-symbols-outlined text-sm">inventory_2</span>CARGO
+            </button>
+            <button id="btn-notas" onclick="setCargoView('notas')"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">auto_stories</span>NOTAS SAGRADAS
+            </button>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- === CARGO VIEW === -->
+        <!-- ============================================ -->
+        <div id="cargo-view">
+            <!-- Cargo Count Indicator -->
+            <div id="cargo-count-bar" class="mx-4 mb-4 hidden">
+                <div class="bg-[#1a1718] border border-data-green/30 p-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-data-green text-lg">inventory_2</span>
+                        <span class="text-data-green text-[10px] font-mono font-bold uppercase tracking-wider">
+                            <span id="cargo-count">0</span> DATA-BLOCKS STORED
+                        </span>
+                    </div>
+                    <span class="text-data-green/50 text-[9px] font-mono">LOCAL STORAGE</span>
                 </div>
-                <span class="text-data-green/50 text-[9px] font-mono">LOCAL STORAGE</span>
+            </div>
+
+            <!-- Empty State -->
+            <div id="cargo-empty-state" class="flex-1 flex flex-col items-center justify-center py-16 px-8">
+                <div class="size-20 bg-[#1e1617] border border-[#332224] rounded-lg flex items-center justify-center mb-4 opacity-50">
+                    <span class="material-symbols-outlined text-data-green/30 text-4xl">inventory_2</span>
+                </div>
+                <p class="text-gray-500 font-mono text-sm text-center mb-2">/// CARGO BAY EMPTY ///</p>
+                <p class="text-gray-600 text-xs text-center">Tap the crate below to register new data</p>
+            </div>
+
+            <!-- Cargo List -->
+            <div id="cargo-list" class="flex-1 px-4 pt-2 pb-48 space-y-4 hidden lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
+                <!-- Cargo items se insertan aquí -->
+            </div>
+
+            <!-- Offload Button -->
+            <div id="cargo-offload-container" class="fixed bottom-16 left-0 right-0 max-w-md mx-auto px-4 pb-4 bg-gradient-to-t from-background-dark via-background-dark/80 to-transparent z-30 hidden">
+                <button id="cargo-btn-offload" class="w-full h-14 bg-gradient-to-r from-primary-dark to-primary flex items-center justify-center gap-3 rounded-sm border-2 border-primary/40 shadow-[0_0_20px_rgba(212,17,50,0.4)] active:scale-95 transition-all group overflow-hidden relative disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div class="absolute inset-0 scanlines opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                    <span class="material-symbols-outlined text-white text-2xl">sensors</span>
+                    <span class="text-white font-display font-bold tracking-[0.2em] text-sm uppercase">Offload to Cogitator</span>
+                </button>
+                <p id="cargo-offload-status" class="text-center text-gray-500 text-[9px] font-mono mt-2 hidden">REQUIRES VOX-LINK CONNECTION</p>
             </div>
         </div>
 
-        <!-- === EMPTY STATE === -->
-        <div id="empty-state" class="flex-1 flex flex-col items-center justify-center py-16 px-8">
-            <div class="size-20 bg-[#1e1617] border border-[#332224] rounded-lg flex items-center justify-center mb-4 opacity-50">
-                <span class="material-symbols-outlined text-data-green/30 text-4xl">inventory_2</span>
+        <!-- ============================================ -->
+        <!-- === NOTAS VIEW === -->
+        <!-- ============================================ -->
+        <div id="notas-view" class="hidden">
+            <!-- Count bar -->
+            <div id="notas-count-bar" class="hidden px-5 py-2">
+                <div class="flex items-center gap-2 text-[10px] font-mono text-secondary/60 uppercase tracking-widest">
+                    <span class="material-symbols-outlined text-xs">database</span>
+                    <span><span id="notas-count">0</span> data-scrolls inscribed</span>
+                </div>
             </div>
-            <p class="text-gray-500 font-mono text-sm text-center mb-2">/// CARGO BAY EMPTY ///</p>
-            <p class="text-gray-600 text-xs text-center">Tap the crate below to register new data</p>
+
+            <!-- Empty state -->
+            <div id="notas-empty-state" class="hidden px-5 pt-16 text-center">
+                <span class="material-symbols-outlined text-6xl text-gray-700 mb-4 block">menu_book</span>
+                <p class="text-gray-500 font-display text-lg uppercase tracking-wider">El cogitador está vacío</p>
+                <p class="text-gray-600 text-xs mt-2 font-mono">Inscribe tu primera nota sagrada, Lord Capitán</p>
+            </div>
+
+            <!-- Notes list -->
+            <div id="notas-list" class="flex-1 px-4 pt-4 pb-48 space-y-4 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
+            </div>
+
+            <!-- Offload to Obsidian -->
+            <div id="notas-offload-section" class="hidden fixed bottom-16 left-0 right-0 max-w-md mx-auto px-4 pb-4 bg-gradient-to-t from-background-dark via-background-dark/90 to-transparent z-30">
+                <button id="notas-btn-offload" onclick="offloadNotas()" class="w-full h-14 bg-gradient-to-r from-primary-dark to-primary flex items-center justify-center gap-3 rounded-sm border-2 border-primary/40 shadow-[0_0_20px_rgba(212,17,50,0.4)] active:scale-95 transition-all group overflow-hidden relative">
+                    <div class="absolute inset-0 scanlines opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                    <span class="material-symbols-outlined text-white text-2xl group-hover:rotate-12 transition-transform">auto_stories</span>
+                    <span class="text-white font-display font-bold tracking-[0.2em] text-sm uppercase">Bless with Imperial Seal</span>
+                </button>
+                <p class="text-center text-[8px] font-mono text-gray-600 mt-1 uppercase tracking-widest">Offload scrolls to Obsidian cogitator</p>
+            </div>
         </div>
 
-        <!-- === CARGO LIST === -->
-        <div id="cargo-list" class="flex-1 px-4 pt-2 pb-48 space-y-4 hidden lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
-            <!-- Cargo items se insertan aquí -->
-        </div>
-
-        <!-- === FAB BUTTON === -->
-        <div class="fixed bottom-36 right-6 z-50 lg:bottom-8 lg:right-8">
+        <!-- === FAB BUTTON: CARGO (crate) === -->
+        <div id="fab-cargo" class="fixed bottom-36 right-6 z-50 lg:bottom-8 lg:right-8">
             <button id="fab-add" class="relative group focus:outline-none">
                 <div class="absolute -inset-1 bg-data-green/10 rounded-lg blur-md group-hover:bg-data-green/30 transition-all duration-300"></div>
                 <div class="relative size-16 bg-[#2a2a2e] border-t-4 border-x-4 border-b-8 border-black rounded-md flex items-center justify-center crate-shadow overflow-hidden group-active:scale-95 transition-transform duration-100">
@@ -307,14 +396,19 @@
             </button>
         </div>
 
-        <!-- === OFFLOAD BUTTON === -->
-        <div id="offload-container" class="fixed bottom-16 left-0 right-0 max-w-md mx-auto px-4 pb-4 bg-gradient-to-t from-background-dark via-background-dark/80 to-transparent z-30 hidden">
-            <button id="btn-offload" class="w-full h-14 bg-gradient-to-r from-primary-dark to-primary flex items-center justify-center gap-3 rounded-sm border-2 border-primary/40 shadow-[0_0_20px_rgba(212,17,50,0.4)] active:scale-95 transition-all group overflow-hidden relative disabled:opacity-50 disabled:cursor-not-allowed">
-                <div class="absolute inset-0 scanlines opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                <span class="material-symbols-outlined text-white text-2xl">sensors</span>
-                <span class="text-white font-display font-bold tracking-[0.2em] text-sm uppercase">Offload to Cogitator</span>
+        <!-- === FAB BUTTON: NOTAS (quill) === -->
+        <div id="fab-notas" class="hidden fixed bottom-36 right-6 z-50 flex flex-col items-center lg:bottom-8 lg:right-8">
+            <button onclick="abrirEditor()" class="relative group">
+                <div class="absolute -inset-3 bg-data-green/30 rounded-full blur-xl group-hover:bg-data-green/50 transition-colors"></div>
+                <div class="relative size-16 bg-[#1a1718] border-2 border-data-green/60 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.3)] active:scale-95 transition-transform green-button-glow overflow-hidden">
+                    <div class="absolute inset-0 scanlines opacity-40 pointer-events-none"></div>
+                    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:8px_8px]"></div>
+                    <span class="material-symbols-outlined text-4xl text-data-green font-bold data-glow relative z-10">draw</span>
+                </div>
+                <div class="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 border border-data-green/40 px-3 py-1 rounded text-[9px] font-bold tracking-[0.2em] text-data-green uppercase pointer-events-none shadow-lg">
+                    Inscribe New Note
+                </div>
             </button>
-            <p id="offload-status" class="text-center text-gray-500 text-[9px] font-mono mt-2 hidden">REQUIRES VOX-LINK CONNECTION</p>
         </div>
 
         <!-- === PWA INSTALL BANNER === -->
@@ -365,15 +459,81 @@
                 <span class="text-[9px] font-bold tracking-widest uppercase data-glow">Cargo</span>
                 <div class="absolute top-0 w-full h-0.5 bg-data-green shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
             </a>
-            <a href="notas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
-                <span class="material-symbols-outlined text-2xl mb-0.5">auto_stories</span>
-                <span class="text-[9px] font-bold tracking-widest uppercase">Notas</span>
+            <a href="economato.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">account_balance</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Econo.</span>
             </a>
             <a href="bahia-medica.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">medical_services</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Médica</span>
             </a>
         </nav>
+    </div>
+
+    <!-- === NOTAS EDITOR (fullscreen overlay) === -->
+    <div id="notas-editor" class="hidden fixed inset-0 z-[60] bg-background-dark max-w-md mx-auto flex flex-col">
+        <!-- Editor Header -->
+        <div class="relative z-20 px-4 pt-6 pb-2 bg-[#0f0f10]">
+            <div class="flex items-center justify-between mb-1">
+                <button onclick="cerrarEditor()" class="flex items-center gap-1 text-primary text-[10px] font-mono uppercase tracking-widest hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-sm">arrow_back</span>
+                    <span>Return to Archives</span>
+                </button>
+                <div class="flex gap-2">
+                    <span class="material-symbols-outlined text-secondary text-xs">skull</span>
+                    <span class="material-symbols-outlined text-secondary text-xs">skull</span>
+                </div>
+            </div>
+            <div class="relative group">
+                <div class="absolute -left-2 top-1/2 -translate-y-1/2">
+                    <span class="material-symbols-outlined text-secondary text-lg">shield</span>
+                </div>
+                <input id="editor-title" class="w-full bg-transparent border-y border-secondary/30 py-2 px-6 text-secondary font-display font-bold text-lg tracking-wider focus:outline-none focus:border-secondary transition-colors uppercase placeholder:text-secondary/30" type="text" placeholder="ENTER SACRED DESIGNATION...">
+                <div class="absolute -right-2 top-1/2 -translate-y-1/2">
+                    <span class="material-symbols-outlined text-secondary text-lg">shield</span>
+                </div>
+            </div>
+            <div class="flex justify-center -mt-1.5">
+                <div class="bg-background-dark px-2">
+                    <span class="material-symbols-outlined text-primary text-[10px]">stat_3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor Body -->
+        <div class="relative flex-1 parchment-slate overflow-hidden">
+            <div class="absolute inset-0 scanlines z-10 opacity-40"></div>
+            <div class="relative z-20 p-6 h-full">
+                <textarea id="editor-content" class="w-full h-full bg-transparent border-none focus:ring-0 font-mono text-data-green text-sm leading-relaxed resize-none data-glow placeholder:text-data-green/20" placeholder="Commence data-inscription here, scribe..."></textarea>
+            </div>
+            <!-- Seal & Archive FAB -->
+            <div class="absolute bottom-6 right-6 z-30">
+                <button onclick="guardarNota()" class="flex flex-col items-center gap-1 group">
+                    <div class="size-14 bg-primary rounded-full flex items-center justify-center shadow-[0_0_25px_rgba(212,17,50,0.6)] border-2 border-white/20 active:scale-95 transition-all">
+                        <span class="material-symbols-outlined text-white text-3xl">verified</span>
+                    </div>
+                    <span class="text-[8px] font-bold text-white uppercase tracking-tighter bg-primary px-1">Seal &amp; Archive</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Editor Toolbar -->
+        <div class="bg-[#1a1718] border-t border-secondary/20 px-2 py-1.5 flex items-center justify-between z-30">
+            <button onclick="toggleTipo()" id="btn-tipo" class="flex items-center gap-1 px-2 py-1 hover:bg-white/5 rounded transition-colors group">
+                <span class="material-symbols-outlined text-parchment text-lg group-hover:scale-110 transition-transform">description</span>
+                <span id="tipo-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">Parchment</span>
+            </button>
+            <div class="h-4 w-px bg-white/10"></div>
+            <button onclick="eliminarNotaActual()" class="flex items-center gap-1 px-2 py-1 hover:bg-white/5 rounded transition-colors group">
+                <span class="material-symbols-outlined text-primary text-lg group-hover:scale-110 transition-transform">delete_forever</span>
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">Purge</span>
+            </button>
+            <div class="h-4 w-px bg-white/10"></div>
+            <div class="flex items-center gap-1 px-2 py-1">
+                <span class="w-1.5 h-1.5 bg-data-green rounded-full animate-pulse"></span>
+                <span class="text-[8px] font-mono text-data-green/70 uppercase">Cogitator Link Active</span>
+            </div>
+        </div>
     </div>
 
     <!-- === ADD CARGO MODAL === -->
@@ -409,9 +569,117 @@
         </div>
     </div>
 
+    <!-- === TOAST (shared) === -->
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[200] hidden">
+        <div class="px-4 py-2 rounded bg-[#1a1718] border border-secondary/30 shadow-lg text-sm font-display flex items-center gap-2">
+            <span id="toast-icon" class="material-symbols-outlined text-lg"></span>
+            <span id="toast-text"></span>
+        </div>
+    </div>
+
+    <!-- === SHARED UTILITIES (loaded before both scripts) === -->
+    <script>
+        // Shared utility functions used by both cargo.js and notas.js
+        // Defined here to avoid duplication
+
+        /** Set imperial date in header */
+        function setFechaImperial() {
+            const fechaEl = document.getElementById('fecha-imperial');
+            if (!fechaEl) return;
+            const now = new Date();
+            const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+            const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+            fechaEl.textContent = `+++ ${dias[now.getDay()]} ${String(now.getDate()).padStart(2, '0')} ${meses[now.getMonth()]} +++`;
+        }
+
+        /** Escape HTML entities */
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        /** Format relative time */
+        function formatTimeAgo(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const diff = Date.now() - timestamp;
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+            return new Date(timestamp).toLocaleDateString('es-ES');
+        }
+
+        /** Show toast notification (unified for both views) */
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-text');
+            if (!toast || !icon || !text) return;
+
+            text.textContent = message;
+            if (type === 'success') {
+                icon.textContent = 'verified';
+                icon.className = 'material-symbols-outlined text-lg text-data-green';
+                text.className = 'text-data-green';
+            } else {
+                icon.textContent = 'error';
+                icon.className = 'material-symbols-outlined text-lg text-primary';
+                text.className = 'text-primary';
+            }
+
+            toast.classList.remove('hidden');
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 2500);
+        }
+
+        /** Toggle between CARGO and NOTAS views */
+        let currentCargoView = 'cargo';
+
+        function setCargoView(view) {
+            currentCargoView = view;
+            const cargoView = document.getElementById('cargo-view');
+            const notasView = document.getElementById('notas-view');
+            const fabCargo = document.getElementById('fab-cargo');
+            const fabNotas = document.getElementById('fab-notas');
+            const btnCargo = document.getElementById('btn-cargo');
+            const btnNotas = document.getElementById('btn-notas');
+
+            // Hide all views and FABs
+            cargoView.classList.add('hidden');
+            notasView.classList.add('hidden');
+            fabCargo.classList.add('hidden');
+            fabNotas.classList.add('hidden');
+
+            // Reset button styles
+            const resetBtn = (btn) => {
+                btn.classList.remove('border-data-green', 'bg-data-green/10', 'text-data-green',
+                                     'border-secondary', 'bg-secondary/10', 'text-secondary');
+                btn.classList.add('border-[#2d2d2d]', 'text-gray-500');
+            };
+            resetBtn(btnCargo);
+            resetBtn(btnNotas);
+
+            if (view === 'cargo') {
+                cargoView.classList.remove('hidden');
+                fabCargo.classList.remove('hidden');
+                btnCargo.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+                btnCargo.classList.add('border-data-green', 'bg-data-green/10', 'text-data-green');
+            } else {
+                notasView.classList.remove('hidden');
+                fabNotas.classList.remove('hidden');
+                btnNotas.classList.remove('border-[#2d2d2d]', 'text-gray-500');
+                btnNotas.classList.add('border-secondary', 'bg-secondary/10', 'text-secondary');
+            }
+        }
+    </script>
+
     <script src="db.js"></script>
     <script src="sync-utils.js"></script>
     <script src="cargo.js"></script>
+    <script src="notas.js"></script>
+
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {

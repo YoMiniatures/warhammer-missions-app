@@ -1,14 +1,16 @@
 // ==========================================
 //  INQUISICIÓN - INQUISICION.JS
+//  (Loaded inside duty.html as REVIEWS tab)
 // ==========================================
 
-const API_URL = '/api';
+// API_URL, isOfflineMode, getFechaImperial, updateConnectionUI,
+// showToast, updateDataFreshnessUI are defined in shared inline script
 
 // Estado global
 let reviews = [];
 let resumen = {};
 let currentAno = 2026;
-let isOfflineMode = false;
+let reviewsInitialized = false;
 
 // Element config - matching Duty's PSI system colors
 const ELEMENT_CONFIG = {
@@ -25,44 +27,23 @@ const ELEMENT_CONFIG = {
 };
 
 // ==========================================
-//  UTILIDADES
+//  REVIEWS-SPECIFIC UI HELPERS
 // ==========================================
 
-function getFechaImperial() {
-    const now = new Date();
-    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-
-    const diaSemana = dias[now.getDay()];
-    const dia = String(now.getDate()).padStart(2, '0');
-    const mes = meses[now.getMonth()];
-
-    return `+++ ${diaSemana} ${dia} ${mes} +++`;
-}
-
-function setLoading(loading) {
-    const loadingEl = document.getElementById('loading-state');
-    const mainEl = document.getElementById('main-content');
-    const errorEl = document.getElementById('error-state');
+function setReviewsLoading(loading) {
+    const loadingEl = document.getElementById('reviews-loading-state');
+    const mainEl = document.getElementById('reviews-main-content');
+    const errorEl = document.getElementById('reviews-error-state');
 
     if (loadingEl) loadingEl.classList.toggle('hidden', !loading);
     if (mainEl) mainEl.classList.toggle('hidden', loading);
     if (errorEl) errorEl.classList.add('hidden');
-
-    const statusText = document.getElementById('status-text');
-    const statusDot = document.getElementById('status-dot');
-
-    if (loading && statusText && statusDot) {
-        statusText.textContent = 'SYNC...';
-        statusDot.classList.remove('bg-green-500', 'bg-red-500');
-        statusDot.classList.add('bg-yellow-500');
-    }
 }
 
-function showError() {
-    const loadingEl = document.getElementById('loading-state');
-    const mainEl = document.getElementById('main-content');
-    const errorEl = document.getElementById('error-state');
+function showReviewsError() {
+    const loadingEl = document.getElementById('reviews-loading-state');
+    const mainEl = document.getElementById('reviews-main-content');
+    const errorEl = document.getElementById('reviews-error-state');
 
     if (loadingEl) loadingEl.classList.add('hidden');
     if (mainEl) mainEl.classList.add('hidden');
@@ -70,38 +51,6 @@ function showError() {
         errorEl.classList.remove('hidden');
         errorEl.classList.add('flex');
     }
-
-    const statusText = document.getElementById('status-text');
-    const statusDot = document.getElementById('status-dot');
-    if (statusText) statusText.textContent = 'ERROR';
-    if (statusDot) {
-        statusDot.classList.remove('bg-green-500', 'bg-yellow-500');
-        statusDot.classList.add('bg-red-500');
-    }
-}
-
-function updateConnectionUI(online) {
-    isOfflineMode = !online;
-    if (window.WhVaultSync && window.WhVaultSync.updateConnectionStatusUI) {
-        window.WhVaultSync.updateConnectionStatusUI(online);
-    }
-}
-
-function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type === 'error' ? 'toast-error' : ''}`;
-    toast.style.cssText = `
-        position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
-        background: ${type === 'error' ? '#d41132' : '#16a34a'}; color: white;
-        padding: 0.5rem 1rem; border-radius: 2px; font-size: 0.875rem;
-        font-weight: bold; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    `;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
 }
 
 // ==========================================
@@ -111,7 +60,6 @@ function showToast(message, type = 'success') {
 async function cargarReviews() {
     try {
         const DB = window.WhVaultDB;
-        const cogitatorOnline = DB?.getCogitatorStatus?.() ?? false;
 
         // 1. CACHE-FIRST: Intentar cargar desde IndexedDB primero
         if (DB) {
@@ -129,8 +77,8 @@ async function cargarReviews() {
                     reviews = reviewsData.reviews || [];
                     resumen = reviewsData.resumen || {};
 
-                    renderAll();
-                    setLoading(false);
+                    renderAllReviews();
+                    setReviewsLoading(false);
 
                     updateDataFreshnessUI(!cached.isFresh, cached.lastUpdate);
 
@@ -148,15 +96,14 @@ async function cargarReviews() {
             }
         }
 
-        // 2. NO HAY CACHE - Intentar fetch siempre (cogitator puede estar disponible
-        //    aunque getCogitatorStatus devuelva false en el primer load)
-        setLoading(true);
+        // 2. NO HAY CACHE - Intentar fetch siempre
+        setReviewsLoading(true);
         await fetchAndCacheReviews(false);
 
     } catch (err) {
         console.error('Error cargando reviews:', err);
         updateConnectionUI(false);
-        showError();
+        showReviewsError();
     }
 }
 
@@ -200,11 +147,11 @@ async function fetchAndCacheReviews(silent = false) {
             }
 
             if (!silent) {
-                renderAll();
-                setLoading(false);
+                renderAllReviews();
+                setReviewsLoading(false);
             } else {
                 // Silent update - re-render with fresh data
-                renderAll();
+                renderAllReviews();
             }
 
             updateConnectionUI(true);
@@ -212,7 +159,7 @@ async function fetchAndCacheReviews(silent = false) {
 
             console.log(`[Cache] Reviews ${currentAno} fetched and cached (${reviews.length} reviews)`);
         } else if (!silent) {
-            showError();
+            showReviewsError();
         }
 
     } catch (err) {
@@ -226,40 +173,10 @@ async function fetchAndCacheReviews(silent = false) {
             updateConnectionUI(false);
             const hasCache = await window.WhVaultDB?.hasCachedData(window.WhVaultDB.STORES.REVIEWS);
             if (!hasCache) {
-                showError();
+                showReviewsError();
             }
         }
     }
-}
-
-/**
- * Show/hide stale data indicator
- */
-function updateDataFreshnessUI(isStale, lastUpdate) {
-    let indicator = document.getElementById('data-freshness');
-
-    if (!isStale) {
-        if (indicator) indicator.remove();
-        return;
-    }
-
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'data-freshness';
-        indicator.className = 'fixed bottom-16 left-0 right-0 bg-amber-900/90 border-t border-amber-700/50 px-3 py-1 flex items-center justify-center gap-2 text-amber-200 text-[10px] font-mono z-40';
-        document.body.appendChild(indicator);
-    }
-
-    const timeAgo = window.WhVaultDB?.formatLastUpdate(lastUpdate) || 'Unknown';
-    const cogitatorOnline = window.WhVaultDB?.getCogitatorStatus?.() ?? false;
-    const statusText = cogitatorOnline ? 'Updating...' : 'Offline';
-    const statusColor = cogitatorOnline ? 'text-amber-400' : 'text-amber-500';
-
-    indicator.innerHTML = `
-        <span class="material-symbols-outlined text-amber-400 text-sm">schedule</span>
-        <span>Cached data from ${timeAgo}</span>
-        <span class="${statusColor}">(${statusText})</span>
-    `;
 }
 
 // ==========================================
@@ -270,7 +187,7 @@ function cambiarAno(year) {
     if (year === currentAno) return;
     currentAno = year;
     updateYearButtons();
-    setLoading(true);
+    setReviewsLoading(true);
     cargarReviews();
 }
 
@@ -292,8 +209,7 @@ function updateYearButtons() {
 //  RENDER FUNCTIONS
 // ==========================================
 
-function renderAll() {
-    document.getElementById('fecha-imperial').textContent = getFechaImperial();
+function renderAllReviews() {
     renderStats();
     renderMonthStats();
     renderTrendChart();
@@ -481,7 +397,6 @@ function renderTrendChart() {
 
     // Escala Y: 0-100%
     const maxY = 100;
-    const minY = 0;
 
     // Crear puntos
     const points = sortedReviews.map((r, i) => {
@@ -817,7 +732,7 @@ async function handleCreateReview(event) {
         const data = await response.json();
 
         if (data.success) {
-            showToast('✅ Review creado correctamente', 'success');
+            showToast('Review creado correctamente', 'success');
             closeCreateReviewModal();
 
             // Reload reviews after brief delay
@@ -835,10 +750,15 @@ async function handleCreateReview(event) {
 }
 
 // ==========================================
-//  INIT
+//  LAZY INIT (called when switching to REVIEWS tab)
 // ==========================================
 
-document.addEventListener('DOMContentLoaded', async () => {
+function initInquisicion() {
+    if (reviewsInitialized) return;
+    reviewsInitialized = true;
+
+    console.log('[Reviews] Initializing...');
+
     // Registrar para cambios de cogitator
     if (window.WhVaultDB) {
         window.WhVaultDB.onCogitatorChange(async (online) => {
@@ -858,12 +778,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Cargar datos iniciales
     cargarReviews();
-
-    // Actualizar fecha cada minuto
-    setInterval(() => {
-        const el = document.getElementById('fecha-imperial');
-        if (el) el.textContent = getFechaImperial();
-    }, 60000);
 
     // === CREATE REVIEW MODAL HANDLERS ===
     const fabCreateReview = document.getElementById('fab-create-review');
@@ -891,4 +805,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-});
+}
+
+// Make functions available globally
+window.cargarReviews = cargarReviews;
+window.cambiarAno = cambiarAno;
+window.initInquisicion = initInquisicion;

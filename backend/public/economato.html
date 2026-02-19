@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>Economato - Treasury Vault</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "primary-dark": "#8a0b20",
+                        "secondary": "#c5a065",
+                        "data-green": "#22c55e",
+                        "background-dark": "#0f0f10",
+                        "surface-dark": "#1a1718",
+                        "surface-accent": "#261e1f",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+    <style>
+        /* Material Symbols config */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f0f10;
+            color: #e5e7eb;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #181112; }
+        ::-webkit-scrollbar-thumb { background: #543b3f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #c5a065; }
+
+        /* Selection */
+        ::selection { background-color: #c5a065; color: black; }
+
+        /* Scanlines */
+        .scanlines {
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Glows */
+        .retro-glow { text-shadow: 0 0 5px rgba(212, 17, 50, 0.5); }
+        .gold-glow { text-shadow: 0 0 8px rgba(197, 160, 101, 0.6); }
+
+        /* Desktop nav styles */
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            color: #888;
+            transition: all 0.2s;
+            position: relative;
+            width: 100%;
+        }
+        .nav-item:hover { color: #c5a065; background: #1e1617; }
+        .nav-item.active { color: #d41132; }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #d41132;
+            box-shadow: 0 0 8px rgba(212,17,50,0.8);
+        }
+        .nav-label { font-size: 8px; text-transform: uppercase; font-weight: bold; }
+
+        /* Modal styles */
+        .eco-modal { background: rgba(0,0,0,0.9); backdrop-filter: blur(4px); }
+        .eco-modal-box {
+            background: linear-gradient(145deg, #1e1c1d, #141112);
+            border: 1px solid rgba(197,160,101,0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8), inset 0 0 20px rgba(197,160,101,0.05);
+            max-width: 500px; width: 92%; max-height: 85dvh; overflow-y: auto;
+            border-radius: 12px;
+        }
+        .eco-modal-header {
+            border-bottom: 1px solid rgba(197,160,101,0.2);
+            background: linear-gradient(to bottom, rgba(197,160,101,0.08), transparent);
+        }
+        .eco-input {
+            background: #0f0f10; border: 1px solid #333; border-radius: 6px;
+            color: #e5e7eb; padding: 10px 12px; width: 100%; font-size: 14px;
+            font-family: 'Space Grotesk', sans-serif; transition: border-color 0.2s;
+        }
+        .eco-input:focus { outline: none; border-color: #c5a065; box-shadow: 0 0 8px rgba(197,160,101,0.2); }
+        .eco-label { color: #c5a065; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; display: block; }
+        .eco-btn {
+            padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px;
+            text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s;
+            border: none; font-family: 'Space Grotesk', sans-serif;
+        }
+        .eco-btn-gold { background: linear-gradient(145deg, #c5a065, #a08050); color: #000; }
+        .eco-btn-gold:active { transform: scale(0.97); }
+        .eco-btn-cancel { background: transparent; border: 1px solid #444; color: #999; }
+
+        /* Action sheet */
+        .action-sheet-backdrop { background: rgba(0,0,0,0.7); }
+        .action-sheet {
+            background: #1a1718; border-top: 2px solid rgba(197,160,101,0.3);
+            border-radius: 16px 16px 0 0; max-height: 60dvh; overflow-y: auto;
+        }
+        .action-btn {
+            display: flex; align-items: center; gap: 12px; width: 100%;
+            padding: 14px 16px; border-radius: 8px; color: #e5e7eb;
+            background: rgba(255,255,255,0.03); border: 1px solid #2d2d2d;
+            font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .action-btn:active { background: rgba(197,160,101,0.1); border-color: #c5a065; }
+    </style>
+</head>
+<body>
+    <!-- Desktop side nav (hidden on mobile) -->
+    <nav id="desktop-nav" class="hidden lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-20 lg:flex lg:flex-col lg:bg-[#161011]/90 lg:border-r lg:border-[#332224]/50 lg:backdrop-blur-md lg:z-50">
+        <div class="flex items-center justify-center h-20 border-b border-[#332224]/40">
+            <span class="material-symbols-outlined text-secondary text-2xl">shield_person</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center py-4 gap-2">
+            <a href="index.html" class="nav-item">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span class="nav-label">Bridge</span>
+            </a>
+            <a href="auspex.html" class="nav-item">
+                <span class="material-symbols-outlined">radar</span>
+                <span class="nav-label">Auspex</span>
+            </a>
+            <a href="duty.html" class="nav-item">
+                <span class="material-symbols-outlined">task_alt</span>
+                <span class="nav-label">Duty</span>
+            </a>
+            <a href="voidmap.html" class="nav-item">
+                <span class="material-symbols-outlined">public</span>
+                <span class="nav-label">Void</span>
+            </a>
+            <a href="directivas.html" class="nav-item">
+                <span class="material-symbols-outlined">target</span>
+                <span class="nav-label">Direct.</span>
+            </a>
+            <a href="cargo.html" class="nav-item">
+                <span class="material-symbols-outlined">inventory_2</span>
+                <span class="nav-label">Cargo</span>
+            </a>
+            <a href="economato.html" class="nav-item active">
+                <span class="material-symbols-outlined">account_balance</span>
+                <span class="nav-label">Econo.</span>
+            </a>
+            <a href="bahia-medica.html" class="nav-item">
+                <span class="material-symbols-outlined">medical_services</span>
+                <span class="nav-label">Médica</span>
+            </a>
+        </div>
+        <div class="flex items-center justify-center h-16 border-t border-[#332224]/40">
+            <div id="desktop-status-dot" class="size-3 bg-green-500 rounded-full"></div>
+        </div>
+    </nav>
+
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224] lg:max-w-none lg:border-x-0 lg:shadow-none lg:mx-0 lg:ml-20 lg:w-[calc(100vw-5rem)] lg:pr-6">
+
+        <!-- Scanlines overlay -->
+        <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
+
+        <!-- === HEADER === -->
+        <header class="lg:hidden flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+            <div class="flex shrink-0 items-center gap-3">
+                <div class="relative">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-sm size-10 border border-secondary/50 bg-[#1a1718] flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary text-xl">shield_person</span>
+                    </div>
+                    <div id="status-dot" class="absolute -bottom-1 -right-1 size-3 bg-green-500 rounded-full border-2 border-[#221618]"></div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">Lord Captain</span>
+                    <span class="text-white text-sm font-bold leading-none">Von Valancius</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center gap-1 text-primary text-[10px] font-mono tracking-widest mb-0.5">
+                    <span class="material-symbols-outlined text-[10px]">wifi_tethering</span>
+                    <span id="status-text">NOMINAL</span>
+                </div>
+                <div id="fecha-imperial" class="text-gray-400 font-mono text-xs">0.000.0000.M3</div>
+            </div>
+        </header>
+
+        <!-- === TITLE === -->
+        <div class="relative p-5 pb-4">
+            <div class="absolute top-0 left-0 w-1 h-full bg-secondary/30"></div>
+            <div class="flex items-center justify-between">
+                <h2 class="text-white tracking-tight text-3xl font-bold leading-tight uppercase font-display retro-glow">
+                    Economato <br><span class="text-secondary">Imperial</span>
+                </h2>
+                <span class="material-symbols-outlined text-secondary text-3xl opacity-80">account_balance</span>
+            </div>
+            <p class="text-gray-500 text-[10px] mt-2 font-mono uppercase tracking-widest">/// TREASURY VAULT: FINANCIAL OPERATIONS ///</p>
+        </div>
+
+        <!-- === TOGGLE PILLS === -->
+        <div class="flex items-center gap-1 mb-2 px-4 lg:px-6">
+            <button id="pill-portfolio" onclick="setEcoView('portfolio')" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-secondary bg-secondary/10 text-secondary">
+                <span class="material-symbols-outlined text-sm">monitoring</span>PORTFOLIO
+            </button>
+            <button id="pill-budget" onclick="setEcoView('budget')" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">savings</span>BUDGET
+            </button>
+            <button id="pill-patrimonio" onclick="setEcoView('patrimonio')" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">account_balance_wallet</span>TOTAL
+            </button>
+        </div>
+
+        <!-- === CONTENT VIEWS === -->
+        <div class="flex-1 px-4 pb-24 lg:px-6">
+
+            <!-- PORTFOLIO VIEW -->
+            <div id="portfolio-view">
+                <div id="portfolio-content"></div>
+            </div>
+
+            <!-- BUDGET VIEW -->
+            <div id="budget-view" style="display:none;">
+                <div id="budget-content"></div>
+            </div>
+
+            <!-- PATRIMONIO VIEW -->
+            <div id="patrimonio-view" style="display:none;">
+                <div id="patrimonio-content"></div>
+            </div>
+
+        </div>
+
+        <!-- === FAB (Portfolio only) === -->
+        <button id="fab-portfolio" onclick="openNewAssetModal()"
+            class="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 w-14 h-14 rounded-full z-30 flex items-center justify-center transition-all active:scale-95 shadow-2xl"
+            style="background: linear-gradient(145deg, #c5a065, #a08050); border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 4px 20px rgba(197,160,101,0.4);">
+            <span class="material-symbols-outlined text-3xl text-black">add</span>
+        </button>
+
+    <!-- === MODAL: Nueva Inversión === -->
+    <div id="modal-new-asset" class="eco-modal fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeNewAssetModal()">
+        <div class="eco-modal-box">
+            <div class="eco-modal-header p-4 flex items-center justify-between sticky top-0 z-10 rounded-t-xl" style="background:#1e1c1d;">
+                <h3 class="text-white font-bold text-base uppercase tracking-wide flex items-center gap-2">
+                    <span class="material-symbols-outlined text-secondary">add_circle</span>Nueva Inversión
+                </h3>
+                <button onclick="closeNewAssetModal()" class="text-gray-400 hover:text-white p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="eco-label">Nombre *</label>
+                    <input id="new-asset-nombre" type="text" class="eco-input" placeholder="Ej: Bitcoin, Oro Lingote...">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="eco-label">Vertical *</label>
+                        <select id="new-asset-vertical" class="eco-input"></select>
+                    </div>
+                    <div>
+                        <label class="eco-label">Fuente de precio</label>
+                        <select id="new-asset-api" class="eco-input" onchange="onApiTypeChange()">
+                            <option value="manual">Manual</option>
+                            <option value="coingecko">CoinGecko (Crypto)</option>
+                            <option value="goldapi">Gold-API (Metales)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="field-identificador" style="display:none;">
+                    <label class="eco-label">Identificador API</label>
+                    <input id="new-asset-identificador" type="text" class="eco-input" placeholder="Ej: bitcoin, XAU...">
+                    <p class="text-gray-500 text-[10px] mt-1 font-mono" id="identificador-hint"></p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="eco-label">Moneda</label>
+                        <select id="new-asset-moneda" class="eco-input">
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                    <div id="field-unidad" style="display:none;">
+                        <label class="eco-label">Unidad cantidad</label>
+                        <select id="new-asset-unidad" class="eco-input">
+                            <option value="unidades">Unidades</option>
+                            <option value="gramos">Gramos</option>
+                            <option value="onzas">Onzas</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="field-precio-manual" class="">
+                    <label class="eco-label">Precio actual (manual)</label>
+                    <input id="new-asset-precio" type="number" step="0.01" class="eco-input" placeholder="0.00">
+                </div>
+                <!-- Primera compra (opcional) -->
+                <div class="border-t border-[#2d2d2d] pt-3 mt-3">
+                    <label class="flex items-center gap-2 cursor-pointer mb-3">
+                        <input type="checkbox" id="new-asset-compra-toggle" onchange="document.getElementById('new-asset-compra-fields').style.display=this.checked?'block':'none'" class="accent-[#c5a065]">
+                        <span class="text-gray-300 text-xs font-bold uppercase">Añadir primera compra</span>
+                    </label>
+                    <div id="new-asset-compra-fields" style="display:none;" class="space-y-3">
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="eco-label">Fecha</label>
+                                <input id="new-asset-compra-fecha" type="date" class="eco-input text-xs">
+                            </div>
+                            <div>
+                                <label class="eco-label">Cantidad</label>
+                                <input id="new-asset-compra-cantidad" type="number" step="any" class="eco-input" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="eco-label">Precio/u</label>
+                                <input id="new-asset-compra-precio" type="number" step="any" class="eco-input" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeNewAssetModal()" class="eco-btn eco-btn-cancel flex-1">Cancelar</button>
+                    <button onclick="saveNewAsset()" class="eco-btn eco-btn-gold flex-1">Crear Activo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === MODAL: Añadir Compra === -->
+    <div id="modal-compra" class="eco-modal fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeCompraModal()">
+        <div class="eco-modal-box">
+            <div class="eco-modal-header p-4 flex items-center justify-between sticky top-0 z-10 rounded-t-xl" style="background:#1e1c1d;">
+                <h3 class="text-white font-bold text-base uppercase tracking-wide flex items-center gap-2">
+                    <span class="material-symbols-outlined text-green-400">shopping_cart</span>Añadir Compra
+                </h3>
+                <button onclick="closeCompraModal()" class="text-gray-400 hover:text-white p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div id="compra-asset-name" class="text-secondary font-bold text-sm mb-2"></div>
+                <input type="hidden" id="compra-asset-id">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="eco-label">Fecha</label>
+                        <input id="compra-fecha" type="date" class="eco-input text-xs">
+                    </div>
+                    <div>
+                        <label class="eco-label">Cantidad</label>
+                        <input id="compra-cantidad" type="number" step="any" class="eco-input" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="eco-label">Precio/u</label>
+                        <input id="compra-precio" type="number" step="any" class="eco-input" placeholder="0">
+                    </div>
+                </div>
+                <div id="compra-total-preview" class="text-gray-400 text-xs font-mono text-right"></div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeCompraModal()" class="eco-btn eco-btn-cancel flex-1">Cancelar</button>
+                    <button onclick="saveCompra()" class="eco-btn eco-btn-gold flex-1">Registrar Compra</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === MODAL: Añadir Venta === -->
+    <div id="modal-venta" class="eco-modal fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closeVentaModal()">
+        <div class="eco-modal-box">
+            <div class="eco-modal-header p-4 flex items-center justify-between sticky top-0 z-10 rounded-t-xl" style="background:#1e1c1d;">
+                <h3 class="text-white font-bold text-base uppercase tracking-wide flex items-center gap-2">
+                    <span class="material-symbols-outlined text-red-400">sell</span>Añadir Venta
+                </h3>
+                <button onclick="closeVentaModal()" class="text-gray-400 hover:text-white p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div id="venta-asset-name" class="text-secondary font-bold text-sm"></div>
+                <div id="venta-holdings" class="text-gray-400 text-xs font-mono mb-2"></div>
+                <input type="hidden" id="venta-asset-id">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="eco-label">Fecha</label>
+                        <input id="venta-fecha" type="date" class="eco-input text-xs">
+                    </div>
+                    <div>
+                        <label class="eco-label">Cantidad</label>
+                        <input id="venta-cantidad" type="number" step="any" class="eco-input" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="eco-label">Precio/u</label>
+                        <input id="venta-precio" type="number" step="any" class="eco-input" placeholder="0">
+                    </div>
+                </div>
+                <div id="venta-total-preview" class="text-gray-400 text-xs font-mono text-right"></div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeVentaModal()" class="eco-btn eco-btn-cancel flex-1">Cancelar</button>
+                    <button onclick="saveVenta()" class="eco-btn eco-btn-gold flex-1">Registrar Venta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === MODAL: Editar Precio Manual === -->
+    <div id="modal-precio" class="eco-modal fixed inset-0 z-50 hidden items-center justify-center" onclick="if(event.target===this)closePrecioModal()">
+        <div class="eco-modal-box">
+            <div class="eco-modal-header p-4 flex items-center justify-between sticky top-0 z-10 rounded-t-xl" style="background:#1e1c1d;">
+                <h3 class="text-white font-bold text-base uppercase tracking-wide flex items-center gap-2">
+                    <span class="material-symbols-outlined text-secondary">edit</span>Actualizar Precio
+                </h3>
+                <button onclick="closePrecioModal()" class="text-gray-400 hover:text-white p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div id="precio-asset-name" class="text-secondary font-bold text-sm mb-2"></div>
+                <input type="hidden" id="precio-asset-id">
+                <div>
+                    <label class="eco-label">Nuevo precio unitario</label>
+                    <input id="precio-valor" type="number" step="0.01" class="eco-input" placeholder="0.00">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closePrecioModal()" class="eco-btn eco-btn-cancel flex-1">Cancelar</button>
+                    <button onclick="saveManualPrice()" class="eco-btn eco-btn-gold flex-1">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === ACTION SHEET === -->
+    <div id="asset-actions" class="action-sheet-backdrop fixed inset-0 z-50 hidden" onclick="if(event.target===this)closeAssetActions()">
+        <div class="action-sheet absolute bottom-0 left-0 right-0 max-w-md mx-auto p-4 pb-8 lg:max-w-lg">
+            <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-4"></div>
+            <div id="action-sheet-header" class="mb-4 pb-3 border-b border-[#2d2d2d]"></div>
+            <div id="action-sheet-buttons" class="space-y-2"></div>
+        </div>
+    </div>
+
+        <!-- === BOTTOM NAVIGATION === -->
+        <nav class="lg:hidden fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+            <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
+            </a>
+            <a href="auspex.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">radar</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Auspex</span>
+            </a>
+            <a href="duty.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
+            </a>
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
+            </a>
+            <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Direct.</span>
+            </a>
+            <a href="cargo.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">inventory_2</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Cargo</span>
+            </a>
+            <a href="economato.html" class="flex flex-col items-center justify-center w-full h-full text-secondary hover:bg-[#1e1617] relative">
+                <span class="material-symbols-outlined text-2xl mb-0.5 gold-glow">account_balance</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase gold-glow">Econo.</span>
+                <div class="absolute top-0 w-full h-0.5 bg-secondary shadow-[0_0_8px_rgba(197,160,101,0.8)]"></div>
+            </a>
+            <a href="bahia-medica.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">medical_services</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Médica</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- DB + Economato Logic -->
+    <script src="/db.js"></script>
+    <script src="/economato.js"></script>
+
+    <script>
+        // Imperial date
+        document.addEventListener('DOMContentLoaded', () => {
+            const fechaEl = document.getElementById('fecha-imperial');
+            if (fechaEl) {
+                const now = new Date();
+                const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+                const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+                fechaEl.textContent = `+++ ${dias[now.getDay()]} ${String(now.getDate()).padStart(2, '0')} ${meses[now.getMonth()]} +++`;
+            }
+
+            // Init economato
+            initEconomato();
+        });
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('SW registered:', registration.scope);
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                newWorker.postMessage('skipWaiting');
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.log('SW registration failed:', error);
+                });
+        }
+    </script>
+</body>
+</html>

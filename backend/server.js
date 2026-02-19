@@ -32,6 +32,154 @@ const SISTEMAS_PATH = path.join(CARTA_ASTRAL_PATH, '00 - SISTEMAS');
 const CUMPLEAÑOS_PATH = path.join(CARTA_ASTRAL_PATH, 'INCOMMING TRANSMISSION ( EVENTOS)', 'CUMPLEAÑOS');
 const AVISOS_PATH = path.join(CARTA_ASTRAL_PATH, 'AUSPEX MONITORING');
 
+// Paths Economato / Green Bits
+const TESORO_PATH = path.join(BASE_PATH, '04 - CÁMARA DEL TESORO (FINANZAS)');
+const GREEN_BITS_PATH = path.join(TESORO_PATH, 'GREEN BITS');
+const GREEN_BITS_ACTIVOS_PATH = path.join(GREEN_BITS_PATH, 'Activos');
+const GREEN_BITS_VERTICALES_PATH = path.join(GREEN_BITS_PATH, 'Verticales');
+
+// Estado del Tesoro (manual - update these values periodically)
+const ESTADO_TESORO = {
+  fuel: 3500,           // Dinero líquido
+  suministros: 15000,   // Invertido
+  deuda: 0,
+  variacionMes: 5.2,    // % cambio mensual
+  generadores: [
+    { nombre: 'Sueldo Principal', icono: 'work', monto: 2500, estado: 'activo' },
+    { nombre: 'Staking Crypto', icono: 'currency_bitcoin', monto: 0, estado: 'inactivo' },
+    { nombre: 'Otros Pasivos', icono: 'savings', monto: 150, estado: 'activo' }
+  ]
+};
+
+// ==========================================
+//  PRICE CACHE (server-side, 5 min TTL)
+// ==========================================
+let priceCache = { prices: {}, usdEurRate: null, timestamp: 0 };
+const PRICE_CACHE_MS = 5 * 60 * 1000;
+
+async function fetchAllPrices(activos) {
+  // Return cache if fresh
+  if (Date.now() - priceCache.timestamp < PRICE_CACHE_MS && priceCache.prices && Object.keys(priceCache.prices).length > 0) {
+    return priceCache;
+  }
+
+  const prices = {};
+  let usdEurRate = priceCache.usdEurRate || 0.92;
+
+  try {
+    // 1. Fetch USD→EUR rate from Frankfurter
+    const fxRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    if (fxRes.ok) {
+      const fxData = await fxRes.json();
+      usdEurRate = fxData.rates?.EUR || 0.92;
+    }
+  } catch (e) {
+    console.log('[Economato] Frankfurter fetch failed, using cached rate');
+  }
+
+  // 2. Batch CoinGecko IDs
+  const cgIds = activos
+    .filter(a => a.api === 'coingecko' && a.identificador)
+    .map(a => a.identificador);
+
+  if (cgIds.length > 0) {
+    try {
+      const uniqueIds = [...new Set(cgIds)].join(',');
+      const cgRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${uniqueIds}&vs_currencies=eur,usd&include_24hr_change=true`);
+      if (cgRes.ok) {
+        const cgData = await cgRes.json();
+        for (const [id, data] of Object.entries(cgData)) {
+          prices[`coingecko:${id}`] = {
+            eur: data.eur || 0,
+            usd: data.usd || 0,
+            cambio24h: data.eur_24h_change || 0
+          };
+        }
+      }
+    } catch (e) {
+      console.log('[Economato] CoinGecko fetch failed:', e.message);
+    }
+  }
+
+  // 3. Gold/Silver prices via gold-api.com (free, no key required)
+  const metalActivos = activos.filter(a => a.api === 'goldapi' || a.api === 'metalprice');
+  if (metalActivos.length > 0) {
+    const metalSymbols = [...new Set(metalActivos.map(a => a.identificador || 'XAU'))];
+    for (const metal of metalSymbols) {
+      try {
+        const metalRes = await fetch(`https://api.gold-api.com/price/${metal}`);
+        if (metalRes.ok) {
+          const metalData = await metalRes.json();
+          // gold-api.com returns price in USD per troy ounce
+          const priceUsdPerOz = metalData.price || 0;
+          const priceEurPerOz = priceUsdPerOz * usdEurRate;
+          const priceEurPerGram = priceEurPerOz / 31.1035;
+          prices[`metal:${metal}`] = {
+            eurPerOz: priceEurPerOz,
+            eurPerGram: priceEurPerGram,
+            usdPerOz: priceUsdPerOz
+          };
+          console.log(`[Economato] ${metal}: $${priceUsdPerOz.toFixed(2)}/oz → €${priceEurPerGram.toFixed(2)}/g, €${priceEurPerOz.toFixed(2)}/oz`);
+        }
+      } catch (e) {
+        console.log(`[Economato] Metal price fetch failed for ${metal}:`, e.message);
+      }
+    }
+  }
+
+  // 4. Manual prices don't need fetching (read from frontmatter)
+
+  priceCache = { prices, usdEurRate, timestamp: Date.now() };
+  return priceCache;
+}
+
+/**
+ * Get current price for an asset based on its api type
+ */
+function getAssetPrice(activo, priceData) {
+  const { api, identificador, moneda, unidad_cantidad, precio_actual_manual } = activo;
+
+  if (api === 'coingecko') {
+    const p = priceData.prices[`coingecko:${identificador}`];
+    return p ? p.eur : 0;
+  }
+
+  if (api === 'goldapi' || api === 'metalprice') {
+    const metalId = identificador || 'XAU';
+    const p = priceData.prices[`metal:${metalId}`];
+    if (!p) return 0;
+    return unidad_cantidad === 'onzas' ? p.eurPerOz : p.eurPerGram;
+  }
+
+  if (api === 'manual') {
+    return precio_actual_manual || 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Calculate PnL for a single asset
+ */
+function calculateAssetPnl(activo, precioActual) {
+  const compras = activo.compras || [];
+  const ventas = activo.ventas || [];
+
+  const cantComprada = compras.reduce((sum, c) => sum + (c.cantidad || 0), 0);
+  const cantVendida = ventas.reduce((sum, v) => sum + (v.cantidad || 0), 0);
+  const cantActual = cantComprada - cantVendida;
+
+  const capitalInvertido = compras.reduce((sum, c) => sum + (c.cantidad || 0) * (c.precio_unitario || 0), 0);
+  const capitalRecuperado = ventas.reduce((sum, v) => sum + (v.cantidad || 0) * (v.precio_unitario || 0), 0);
+
+  const precioMedio = cantComprada > 0 ? capitalInvertido / cantComprada : 0;
+  const valorActual = cantActual * precioActual;
+  const pnl = valorActual + capitalRecuperado - capitalInvertido;
+  const roi = capitalInvertido > 0 ? (pnl / capitalInvertido) * 100 : 0;
+
+  return { cantActual, cantComprada, cantVendida, capitalInvertido, capitalRecuperado, precioMedio, valorActual, pnl, roi };
+}
+
 // Helper: Obtener rutas de misiones por año (similar a wh-config.js)
 function getRutaMisionesActivas(año) {
   if (año === 2025) return path.join(SISTEMAS_PATH, 'SISTEMA AQUILA - AÑO 2025', '03 - MISIONES', 'MISIONES ACTIVAS');
@@ -3937,6 +4085,404 @@ app.delete('/api/bahia/historial/:id', async (req, res) => {
 // ============================================
 
 // HTTPS - si hay certificados en ./certs/
+// ==========================================
+//  ECONOMATO ENDPOINTS
+// ==========================================
+
+/**
+ * GET /api/economato/resumen - Estado del tesoro + generadores
+ */
+app.get('/api/economato/resumen', async (req, res) => {
+  try {
+    const ingresosMensuales = ESTADO_TESORO.generadores
+      .filter(g => g.estado === 'activo')
+      .reduce((sum, g) => sum + g.monto, 0);
+
+    res.json({
+      success: true,
+      ...ESTADO_TESORO,
+      tesoroTotal: ESTADO_TESORO.fuel + ESTADO_TESORO.suministros - ESTADO_TESORO.deuda,
+      ingresosMensuales
+    });
+  } catch (error) {
+    console.error('[Economato] Error en resumen:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/economato/portfolio - GREEN BITS con precios live + PnL
+ */
+app.get('/api/economato/portfolio', async (req, res) => {
+  try {
+    // 1. Read all activos
+    const files = await fs.readdir(GREEN_BITS_ACTIVOS_PATH);
+    const mdFiles = files.filter(f => f.endsWith('.md') && f !== 'Activos.md');
+
+    const activos = [];
+    for (const file of mdFiles) {
+      try {
+        const content = await fs.readFile(path.join(GREEN_BITS_ACTIVOS_PATH, file), 'utf-8');
+        const { data } = matter(content);
+        if (data.estado === 'activo' || data.estado === 'pausado') {
+          activos.push({ ...data, _file: file, _id: file.replace('.md', '') });
+        }
+      } catch (e) { /* skip unreadable */ }
+    }
+
+    // 2. Fetch prices (cached)
+    const priceData = await fetchAllPrices(activos);
+
+    // 3. Calculate PnL per asset
+    const activosConPnl = activos.map(a => {
+      const precioActual = getAssetPrice(a, priceData);
+      const calc = calculateAssetPnl(a, precioActual);
+
+      // Get 24h change for coingecko assets
+      let cambio24h = 0;
+      if (a.api === 'coingecko') {
+        const p = priceData.prices[`coingecko:${a.identificador}`];
+        cambio24h = p?.cambio24h || 0;
+      }
+
+      // Check alerts
+      const alertasTriggered = [];
+      if (a.alertas && Array.isArray(a.alertas)) {
+        for (const alerta of a.alertas) {
+          if (!alerta || !alerta.tipo) continue;
+          if (alerta.tipo === 'precio_supera' && precioActual >= alerta.valor) {
+            alertasTriggered.push({ ...alerta, activo: a.nombre });
+          }
+          if (alerta.tipo === 'precio_baja' && precioActual <= alerta.valor) {
+            alertasTriggered.push({ ...alerta, activo: a.nombre });
+          }
+        }
+      }
+
+      return {
+        id: a._id,
+        nombre: a.nombre,
+        vertical: a.vertical,
+        estado: a.estado,
+        api: a.api,
+        moneda: a.moneda || 'EUR',
+        precioActual: Math.round(precioActual * 100) / 100,
+        cambio24h: Math.round(cambio24h * 100) / 100,
+        ...calc,
+        capitalInvertido: Math.round(calc.capitalInvertido * 100) / 100,
+        valorActual: Math.round(calc.valorActual * 100) / 100,
+        pnl: Math.round(calc.pnl * 100) / 100,
+        roi: Math.round(calc.roi * 100) / 100,
+        precioMedio: Math.round(calc.precioMedio * 100) / 100,
+        alertas: alertasTriggered
+      };
+    });
+
+    // 4. Read verticals
+    let verticalesFiles = [];
+    try {
+      verticalesFiles = (await fs.readdir(GREEN_BITS_VERTICALES_PATH))
+        .filter(f => f.endsWith('.md') && f !== 'Verticales.md');
+    } catch (e) { /* no verticales dir */ }
+
+    const verticalesMap = {};
+    for (const vf of verticalesFiles) {
+      try {
+        const vc = await fs.readFile(path.join(GREEN_BITS_VERTICALES_PATH, vf), 'utf-8');
+        const { data } = matter(vc);
+        if (data.nombre) {
+          verticalesMap[data.nombre] = {
+            nombre: data.nombre,
+            descripcion: data.descripcion || '',
+            estado: data.estado || 'activo',
+            capitalInvertido: 0,
+            valorActual: 0,
+            pnl: 0,
+            numActivos: 0
+          };
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // 5. Aggregate by vertical
+    for (const a of activosConPnl) {
+      const vName = a.vertical || 'Otros';
+      if (!verticalesMap[vName]) {
+        verticalesMap[vName] = { nombre: vName, descripcion: '', estado: 'activo', capitalInvertido: 0, valorActual: 0, pnl: 0, numActivos: 0 };
+      }
+      verticalesMap[vName].capitalInvertido += a.capitalInvertido;
+      verticalesMap[vName].valorActual += a.valorActual;
+      verticalesMap[vName].pnl += a.pnl;
+      verticalesMap[vName].numActivos++;
+    }
+
+    const verticales = Object.values(verticalesMap)
+      .filter(v => v.numActivos > 0)
+      .map(v => ({
+        ...v,
+        capitalInvertido: Math.round(v.capitalInvertido * 100) / 100,
+        valorActual: Math.round(v.valorActual * 100) / 100,
+        pnl: Math.round(v.pnl * 100) / 100,
+        roi: v.capitalInvertido > 0 ? Math.round((v.pnl / v.capitalInvertido) * 10000) / 100 : 0
+      }))
+      .sort((a, b) => b.valorActual - a.valorActual);
+
+    // 6. Totals
+    const totalInvertido = verticales.reduce((s, v) => s + v.capitalInvertido, 0);
+    const totalValorActual = verticales.reduce((s, v) => s + v.valorActual, 0);
+    const totalPnl = totalValorActual - totalInvertido;
+    const totalRoi = totalInvertido > 0 ? Math.round((totalPnl / totalInvertido) * 10000) / 100 : 0;
+
+    // All triggered alerts
+    const alertas = activosConPnl.flatMap(a => a.alertas);
+
+    res.json({
+      success: true,
+      activos: activosConPnl.sort((a, b) => b.valorActual - a.valorActual),
+      verticales,
+      totalInvertido: Math.round(totalInvertido * 100) / 100,
+      totalValorActual: Math.round(totalValorActual * 100) / 100,
+      totalPnl: Math.round(totalPnl * 100) / 100,
+      totalRoi,
+      alertas,
+      ultimaActualizacion: new Date(priceCache.timestamp).toISOString()
+    });
+  } catch (error) {
+    console.error('[Economato] Error en portfolio:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// ==========================================
+// ECONOMATO: CRUD Activos (Inversiones)
+// ==========================================
+
+function resolveAssetPath(assetId) {
+  const filePath = path.join(GREEN_BITS_ACTIVOS_PATH, `${assetId}.md`);
+  return existsSync(filePath) ? filePath : null;
+}
+
+function sanitizeFilename(vertical, nombre) {
+  const clean = (str) => str
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .replace(/\s+/g, '-').replace(/-+/g, '-')
+    .trim();
+  return `${clean(vertical)}-${clean(nombre)}`;
+}
+
+// Fix gray-matter Date objects → string in compras/ventas arrays
+function fixDatesInArray(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(entry => {
+    const fixed = { ...entry };
+    if (fixed.fecha instanceof Date) {
+      fixed.fecha = fixed.fecha.toISOString().split('T')[0];
+    }
+    return fixed;
+  });
+}
+
+/**
+ * GET /api/economato/verticales - Lista de verticales activas
+ */
+app.get('/api/economato/verticales', async (req, res) => {
+  try {
+    const files = await fs.readdir(GREEN_BITS_VERTICALES_PATH);
+    const mdFiles = files.filter(f => f.endsWith('.md'));
+    const verticales = [];
+    for (const file of mdFiles) {
+      const content = await fs.readFile(path.join(GREEN_BITS_VERTICALES_PATH, file), 'utf-8');
+      const { data } = matter(content);
+      if (data.nombre && data.estado !== 'abandonado') {
+        verticales.push({ nombre: data.nombre, estado: data.estado || 'activo' });
+      }
+    }
+    res.json({ success: true, verticales });
+  } catch (error) {
+    console.error('[Economato] Error verticales:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/economato/activos/crear - Crear nuevo activo
+ */
+app.post('/api/economato/activos/crear', async (req, res) => {
+  try {
+    const { nombre, vertical, api, identificador, moneda, unidad_cantidad, precio_actual_manual, compraInicial } = req.body;
+    if (!nombre || !vertical) {
+      return res.status(400).json({ success: false, error: 'nombre y vertical son requeridos' });
+    }
+
+    const filename = sanitizeFilename(vertical, nombre);
+    const filepath = path.join(GREEN_BITS_ACTIVOS_PATH, `${filename}.md`);
+
+    if (existsSync(filepath)) {
+      return res.status(409).json({ success: false, error: 'Ya existe un activo con ese nombre' });
+    }
+
+    const compras = [];
+    if (compraInicial && compraInicial.fecha && compraInicial.cantidad > 0) {
+      compras.push({
+        fecha: compraInicial.fecha,
+        cantidad: Number(compraInicial.cantidad),
+        precio_unitario: Number(compraInicial.precio_unitario) || 0
+      });
+    }
+
+    const frontmatter = {
+      nombre,
+      vertical,
+      estado: 'activo',
+      tags: ['green-bits', 'activo'],
+      api: api || 'manual',
+      identificador: identificador || '',
+      moneda: moneda || 'EUR',
+      ...(unidad_cantidad && unidad_cantidad !== 'unidades' ? { unidad_cantidad } : {}),
+      ...(api === 'manual' ? { precio_actual_manual: Number(precio_actual_manual) || 0, fecha_precio_manual: new Date().toISOString().split('T')[0] } : {}),
+      compras,
+      ventas: [],
+      alertas: [],
+      punto_retorno: '',
+      lecciones: '',
+      watchlist: ''
+    };
+
+    const body = `## Notas\n\n`;
+    const fileContent = matter.stringify(body, frontmatter);
+    await fs.writeFile(filepath, fileContent, 'utf-8');
+    priceCache.timestamp = 0; // invalidate
+
+    console.log(`[Economato] Nuevo activo creado: ${filename}`);
+    res.json({ success: true, id: filename });
+  } catch (error) {
+    console.error('[Economato] Error crear activo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/economato/activos/:id - Actualizar metadata del activo
+ */
+app.patch('/api/economato/activos/:id', async (req, res) => {
+  try {
+    const filepath = resolveAssetPath(req.params.id);
+    if (!filepath) {
+      return res.status(404).json({ success: false, error: 'Activo no encontrado' });
+    }
+
+    const content = await fs.readFile(filepath, 'utf-8');
+    const { data, content: body } = matter(content);
+    const updates = req.body;
+
+    if (updates.estado !== undefined) data.estado = updates.estado;
+    if (updates.precio_actual_manual !== undefined) {
+      data.precio_actual_manual = Number(updates.precio_actual_manual);
+      data.fecha_precio_manual = new Date().toISOString().split('T')[0];
+    }
+    if (updates.nombre !== undefined) data.nombre = updates.nombre;
+
+    // Fix dates in arrays before writing
+    data.compras = fixDatesInArray(data.compras);
+    data.ventas = fixDatesInArray(data.ventas);
+
+    await fs.writeFile(filepath, matter.stringify(body, data), 'utf-8');
+    priceCache.timestamp = 0;
+
+    console.log(`[Economato] Activo actualizado: ${req.params.id}`);
+    res.json({ success: true, id: req.params.id });
+  } catch (error) {
+    console.error('[Economato] Error actualizar activo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/economato/activos/:id/compra - Añadir compra a un activo
+ */
+app.post('/api/economato/activos/:id/compra', async (req, res) => {
+  try {
+    const filepath = resolveAssetPath(req.params.id);
+    if (!filepath) {
+      return res.status(404).json({ success: false, error: 'Activo no encontrado' });
+    }
+
+    const { fecha, cantidad, precio_unitario } = req.body;
+    if (!fecha || !cantidad || cantidad <= 0) {
+      return res.status(400).json({ success: false, error: 'fecha y cantidad (>0) son requeridos' });
+    }
+
+    const content = await fs.readFile(filepath, 'utf-8');
+    const { data, content: body } = matter(content);
+
+    data.compras = fixDatesInArray(data.compras || []);
+    data.ventas = fixDatesInArray(data.ventas || []);
+    data.compras.push({
+      fecha: String(fecha),
+      cantidad: Number(cantidad),
+      precio_unitario: Number(precio_unitario) || 0
+    });
+
+    await fs.writeFile(filepath, matter.stringify(body, data), 'utf-8');
+    priceCache.timestamp = 0;
+
+    console.log(`[Economato] Compra añadida a ${req.params.id}: ${cantidad} @ ${precio_unitario}`);
+    res.json({ success: true, id: req.params.id, comprasCount: data.compras.length });
+  } catch (error) {
+    console.error('[Economato] Error añadir compra:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/economato/activos/:id/venta - Añadir venta a un activo
+ */
+app.post('/api/economato/activos/:id/venta', async (req, res) => {
+  try {
+    const filepath = resolveAssetPath(req.params.id);
+    if (!filepath) {
+      return res.status(404).json({ success: false, error: 'Activo no encontrado' });
+    }
+
+    const { fecha, cantidad, precio_unitario } = req.body;
+    if (!fecha || !cantidad || cantidad <= 0 || precio_unitario === undefined) {
+      return res.status(400).json({ success: false, error: 'fecha, cantidad (>0) y precio_unitario son requeridos' });
+    }
+
+    const content = await fs.readFile(filepath, 'utf-8');
+    const { data, content: body } = matter(content);
+
+    data.compras = fixDatesInArray(data.compras || []);
+    data.ventas = fixDatesInArray(data.ventas || []);
+
+    const totalComprado = data.compras.reduce((sum, c) => sum + (Number(c.cantidad) || 0), 0);
+    const totalVendido = data.ventas.reduce((sum, v) => sum + (Number(v.cantidad) || 0), 0);
+    const cantActual = totalComprado - totalVendido;
+
+    if (Number(cantidad) > cantActual + 0.0001) {
+      return res.status(400).json({ success: false, error: `No puedes vender más de lo que posees (${cantActual.toFixed(4)})` });
+    }
+
+    data.ventas.push({
+      fecha: String(fecha),
+      cantidad: Number(cantidad),
+      precio_unitario: Number(precio_unitario)
+    });
+
+    await fs.writeFile(filepath, matter.stringify(body, data), 'utf-8');
+    priceCache.timestamp = 0;
+
+    console.log(`[Economato] Venta añadida a ${req.params.id}: ${cantidad} @ ${precio_unitario}`);
+    res.json({ success: true, id: req.params.id, ventasCount: data.ventas.length });
+  } catch (error) {
+    console.error('[Economato] Error añadir venta:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
 let httpsActive = false;
 if (existsSync(CERTS_DIR)) {
   try {

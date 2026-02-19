@@ -1,16 +1,19 @@
 /**
  * Warhammer Vault - Cargo (Local Notepad)
  * Data blocks stored locally, offloaded to Obsidian when online
+ *
+ * NOTE: setFechaImperial, escapeHtml, formatTimeAgo, showToast
+ * are defined in cargo.html shared utilities block
  */
 
-// DOM Elements
+// DOM Elements (prefixed to avoid conflicts with notas.js)
 const cargoList = document.getElementById('cargo-list');
-const emptyState = document.getElementById('empty-state');
+const cargoEmptyState = document.getElementById('cargo-empty-state');
 const cargoCountBar = document.getElementById('cargo-count-bar');
 const cargoCount = document.getElementById('cargo-count');
-const offloadContainer = document.getElementById('offload-container');
-const btnOffload = document.getElementById('btn-offload');
-const offloadStatus = document.getElementById('offload-status');
+const cargoOffloadContainer = document.getElementById('cargo-offload-container');
+const cargoBtnOffload = document.getElementById('cargo-btn-offload');
+const cargoOffloadStatus = document.getElementById('cargo-offload-status');
 const modalAdd = document.getElementById('modal-add');
 const inputTitle = document.getElementById('input-title');
 const inputContent = document.getElementById('input-content');
@@ -59,10 +62,10 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 function setupEventListeners() {
     // FAB button
-    fabAdd.addEventListener('click', abrirModal);
+    if (fabAdd) fabAdd.addEventListener('click', abrirModal);
 
     // Offload button
-    btnOffload.addEventListener('click', offloadCargo);
+    if (cargoBtnOffload) cargoBtnOffload.addEventListener('click', offloadCargo);
 
     // Connection change
     window.addEventListener('online', () => updateConnectionUI(true));
@@ -89,17 +92,17 @@ async function cargarCargo() {
  */
 function renderCargo() {
     if (cargoItems.length === 0) {
-        emptyState.classList.remove('hidden');
+        cargoEmptyState.classList.remove('hidden');
         cargoList.classList.add('hidden');
         cargoCountBar.classList.add('hidden');
-        offloadContainer.classList.add('hidden');
+        cargoOffloadContainer.classList.add('hidden');
         return;
     }
 
-    emptyState.classList.add('hidden');
+    cargoEmptyState.classList.add('hidden');
     cargoList.classList.remove('hidden');
     cargoCountBar.classList.remove('hidden');
-    offloadContainer.classList.remove('hidden');
+    cargoOffloadContainer.classList.remove('hidden');
 
     // Update count
     cargoCount.textContent = cargoItems.length;
@@ -192,18 +195,6 @@ function getStatusBadge(status) {
 }
 
 /**
- * Format time ago
- */
-function formatTimeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-/**
  * Open add modal
  */
 function abrirModal() {
@@ -275,9 +266,9 @@ async function offloadCargo() {
         return;
     }
 
-    btnOffload.disabled = true;
-    const originalText = btnOffload.innerHTML;
-    btnOffload.innerHTML = `
+    cargoBtnOffload.disabled = true;
+    const originalText = cargoBtnOffload.innerHTML;
+    cargoBtnOffload.innerHTML = `
         <div class="absolute inset-0 scanlines opacity-20"></div>
         <span class="material-symbols-outlined text-white text-2xl animate-spin">sync</span>
         <span class="text-white font-display font-bold tracking-[0.2em] text-sm uppercase">Transmitting...</span>
@@ -322,8 +313,8 @@ async function offloadCargo() {
     // Reload and show result
     await cargarCargo();
 
-    btnOffload.disabled = false;
-    btnOffload.innerHTML = originalText;
+    cargoBtnOffload.disabled = false;
+    cargoBtnOffload.innerHTML = originalText;
 
     if (failCount === 0) {
         showToast(`${successCount} data-blocks offloaded`, 'success');
@@ -337,12 +328,12 @@ async function offloadCargo() {
  */
 function updateOffloadState() {
     if (!navigator.onLine) {
-        btnOffload.disabled = true;
-        offloadStatus.textContent = 'REQUIRES VOX-LINK CONNECTION';
-        offloadStatus.classList.remove('hidden');
+        cargoBtnOffload.disabled = true;
+        cargoOffloadStatus.textContent = 'REQUIRES VOX-LINK CONNECTION';
+        cargoOffloadStatus.classList.remove('hidden');
     } else {
-        btnOffload.disabled = false;
-        offloadStatus.classList.add('hidden');
+        cargoBtnOffload.disabled = false;
+        cargoOffloadStatus.classList.add('hidden');
     }
 }
 
@@ -367,56 +358,6 @@ function updateConnectionUI(isOnline) {
     }
 
     updateOffloadState();
-}
-
-/**
- * Set imperial date
- */
-function setFechaImperial() {
-    const fechaEl = document.getElementById('fecha-imperial');
-    if (!fechaEl) return;
-
-    const now = new Date();
-    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-    const diaSemana = dias[now.getDay()];
-    const dia = String(now.getDate()).padStart(2, '0');
-    const mes = meses[now.getMonth()];
-
-    fechaEl.textContent = `+++ ${diaSemana} ${dia} ${mes} +++`;
-}
-
-/**
- * Show toast notification
- */
-function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.style.background = type === 'success' ? '#16a34a' : '#dc2626';
-    toast.innerHTML = `
-        <span class="material-symbols-outlined mr-2">${type === 'success' ? 'check_circle' : 'error'}</span>
-        ${message}
-    `;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-/**
- * Escape HTML
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 // Make functions globally available

@@ -1,7 +1,7 @@
-// Warhammer Vault - Service Worker v17.0
-// Full offline support + Background Sync + Cache-First IndexedDB + VoidMap hex blanco + aquila coplanar + click fix
+// Warhammer Vault - Service Worker v19.0
+// Duty+Reviews fusion (Inquisición merged into Duty)
 
-const CACHE_VERSION = 'v149';
+const CACHE_VERSION = 'v154';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
@@ -19,7 +19,7 @@ const PRECACHE_ASSETS = [
     '/directiva-detalle.html',
     '/auspex.html',
     '/cargo.html',
-    '/notas.html',
+    '/economato.html',
     '/debug.html',
     '/app.js',
     '/duty.js',
@@ -34,10 +34,10 @@ const PRECACHE_ASSETS = [
     '/voidmap.js',
     '/planeta-detalle.html',
     '/planeta-detalle.js',
-    '/inquisicion.html',
     '/inquisicion.js',
     '/bahia-medica.html',
     '/bahia-medica.js',
+    '/economato.js',
     '/db.js',
     '/sync-utils.js',
     '/manifest.json',
@@ -50,7 +50,7 @@ const PRECACHE_ASSETS = [
 ];
 
 // HTML pages for navigation fallback
-const HTML_PAGES = ['/', '/index.html', '/install.html', '/duty.html', '/directivas.html', '/directiva-detalle.html', '/auspex.html', '/cargo.html', '/notas.html', '/recordadora.html', '/voidmap.html', '/planeta-detalle.html', '/inquisicion.html'];
+const HTML_PAGES = ['/', '/index.html', '/install.html', '/duty.html', '/directivas.html', '/directiva-detalle.html', '/auspex.html', '/cargo.html', '/economato.html', '/recordadora.html', '/voidmap.html', '/planeta-detalle.html', '/bahia-medica.html'];
 
 // Install - pre-cache all static assets
 self.addEventListener('install', (event) => {

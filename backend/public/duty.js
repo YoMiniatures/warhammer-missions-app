@@ -86,48 +86,14 @@ const MOODS = {
 
 const PSI_MAX = 100;
 
-let isOfflineMode = false;
-
-// ==========================================
-//  UTILIDADES
-// ==========================================
-
-function getFechaImperial() {
-    const now = new Date();
-    const dias = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-
-    const diaSemana = dias[now.getDay()];
-    const dia = String(now.getDate()).padStart(2, '0');
-    const mes = meses[now.getMonth()];
-
-    return `+++ ${diaSemana} ${dia} ${mes} +++`;
-}
+// isOfflineMode, getFechaImperial, updateConnectionUI, showToast, updateDataFreshnessUI
+// are defined in the shared inline script in duty.html
 
 function updateHeader() {
     const fechaEl = document.getElementById('fecha-imperial');
     if (fechaEl) {
         fechaEl.textContent = getFechaImperial();
     }
-}
-
-function updateConnectionUI(online) {
-    isOfflineMode = !online;
-    // Use centralized function from sync-utils.js
-    if (window.WhVaultSync && window.WhVaultSync.updateConnectionStatusUI) {
-        window.WhVaultSync.updateConnectionStatusUI(online);
-    }
-}
-
-function showToast(message) {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = `<span class="material-symbols-outlined text-lg mr-1">check_circle</span>${message}`;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
 }
 
 // ==========================================
@@ -656,7 +622,7 @@ function updatePsyCapacity() {
 //  API INTEGRATION
 // ==========================================
 
-const API_URL = '/api';
+// API_URL is defined in the shared inline script in duty.html
 
 async function cargarIncursionFecha(fechaStr) {
     try {
@@ -873,35 +839,7 @@ function resetRitualsAndMoods() {
     MOODS.warp.forEach(mood => { mood.value = 0; });
 }
 
-/**
- * Show/hide stale data indicator
- */
-function updateDataFreshnessUI(isStale, lastUpdate) {
-    let indicator = document.getElementById('data-freshness');
-
-    if (!isStale) {
-        if (indicator) indicator.remove();
-        return;
-    }
-
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'data-freshness';
-        indicator.className = 'fixed bottom-16 left-0 right-0 bg-amber-900/90 border-t border-amber-700/50 px-3 py-1 flex items-center justify-center gap-2 text-amber-200 text-[10px] font-mono z-40';
-        document.body.appendChild(indicator);
-    }
-
-    const timeAgo = window.WhVaultDB?.formatLastUpdate(lastUpdate) || 'No cache';
-    const cogitatorOnline = window.WhVaultDB?.getCogitatorStatus?.() ?? false;
-    const statusText = cogitatorOnline ? 'Updating...' : 'Offline';
-    const statusColor = cogitatorOnline ? 'text-amber-400' : 'text-amber-500';
-
-    indicator.innerHTML = `
-        <span class="material-symbols-outlined text-amber-400 text-sm">schedule</span>
-        <span>Cached data from ${timeAgo}</span>
-        <span class="${statusColor}">(${statusText})</span>
-    `;
-}
+// updateDataFreshnessUI is defined in the shared inline script in duty.html
 
 // Alias para compatibilidad
 async function cargarIncursionHoy() {

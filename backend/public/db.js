@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'wh-vault-db';
-const DB_VERSION = 11; // v11: Historial Médico store
+const DB_VERSION = 12; // v12: Economato portfolio + budget stores
 
 // Stores
 const STORES = {
@@ -24,7 +24,9 @@ const STORES = {
     REVIEWS: 'reviews', // Inquisición - reviews semanales
     CITAS_MEDICAS: 'citas-medicas', // Bahía Médica - checkups médicos
     CONDICIONES_MEDICAS: 'condiciones-medicas', // Bahía Médica - lesiones y afecciones
-    HISTORIAL_MEDICO: 'historial-medico' // Bahía Médica - historial clínico
+    HISTORIAL_MEDICO: 'historial-medico', // Bahía Médica - historial clínico
+    ECONOMATO_PORTFOLIO: 'economato-portfolio', // Economato - portfolio con precios
+    ECONOMATO_BUDGET: 'economato-budget' // Economato - resumen + generadores
 };
 
 // Freshness threshold: 5 minutes
