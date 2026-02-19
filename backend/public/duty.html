@@ -233,6 +233,28 @@
         @media (min-width: 1024px) {
             /* Container handles margin-left via lg:ml-20 class */
         }
+
+        /* Tracker bento heatmap */
+        .tracker-cell {
+            aspect-ratio: 1;
+            border-radius: 1px;
+            transition: transform 0.1s ease;
+        }
+        .tracker-cell:hover {
+            transform: scale(1.4);
+            z-index: 5;
+            position: relative;
+        }
+
+        /* Sparkline bars */
+        .sparkline-bar {
+            min-width: 2px;
+            border-radius: 1px 1px 0 0;
+        }
+
+        /* Hide scrollbar for pill overflow */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
@@ -328,12 +350,18 @@
         </div>
 
         <!-- === TOGGLE PILLS === -->
-        <div class="flex items-center gap-1 mb-2 px-4 lg:px-6">
-            <button id="pill-duty" onclick="setDutyView('duty')" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-primary bg-primary-dark/30 text-primary">
+        <div class="flex items-center gap-1 mb-2 px-4 lg:px-6 overflow-x-auto hide-scrollbar">
+            <button id="pill-duty" onclick="setDutyView('duty')" class="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-primary bg-primary-dark/30 text-primary">
                 <span class="material-symbols-outlined text-sm">task_alt</span>DAILY
             </button>
-            <button id="pill-reviews" onclick="setDutyView('reviews')" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+            <button id="pill-reviews" onclick="setDutyView('reviews')" class="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
                 <span class="material-symbols-outlined text-sm">monitoring</span>REVIEWS
+            </button>
+            <button id="pill-trackers" onclick="setDutyView('trackers')" class="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">grid_view</span>TRACKERS
+            </button>
+            <button id="pill-moral" onclick="setDutyView('moral')" class="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300">
+                <span class="material-symbols-outlined text-sm">psychology</span>MORAL
             </button>
         </div>
 
@@ -677,6 +705,72 @@
             </div>
         </div>
 
+        <!-- ============================================ -->
+        <!-- === TRACKERS VIEW (Monthly Routine Detail) === -->
+        <!-- ============================================ -->
+        <div id="trackers-view" class="hidden">
+            <!-- Loading state -->
+            <div id="trackers-loading-state" class="flex flex-col items-center justify-center py-16 gap-3">
+                <div class="animate-spin">
+                    <span class="material-symbols-outlined text-primary text-4xl">progress_activity</span>
+                </div>
+                <p class="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Cargando datos mensuales...</p>
+            </div>
+            <!-- Error state -->
+            <div id="trackers-error-state" class="hidden flex flex-col items-center justify-center py-16 gap-3">
+                <span class="material-symbols-outlined text-red-500 text-4xl">error_outline</span>
+                <p class="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Error al cargar datos</p>
+                <button onclick="window.loadTrackers && window.loadTrackers()" class="text-primary text-xs font-mono border border-primary/30 px-3 py-1 rounded hover:bg-primary/10">Reintentar</button>
+            </div>
+            <!-- Main content -->
+            <div id="trackers-main-content" class="hidden">
+                <!-- Month nav -->
+                <div id="trackers-month-nav" class="flex items-center justify-between px-4 py-3"></div>
+                <!-- Summary stats -->
+                <div id="trackers-summary" class="grid grid-cols-2 lg:grid-cols-4 gap-2 px-4 mb-4"></div>
+                <!-- Bento grid -->
+                <div id="trackers-bento" class="space-y-4 px-4 pb-24 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0"></div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- === MORAL VIEW (Mood Evolution) === -->
+        <!-- ============================================ -->
+        <div id="moral-view" class="hidden">
+            <!-- Loading state -->
+            <div id="moral-loading-state" class="flex flex-col items-center justify-center py-16 gap-3">
+                <div class="animate-spin">
+                    <span class="material-symbols-outlined text-primary text-4xl">progress_activity</span>
+                </div>
+                <p class="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Cargando evolución moral...</p>
+            </div>
+            <!-- Error state -->
+            <div id="moral-error-state" class="hidden flex flex-col items-center justify-center py-16 gap-3">
+                <span class="material-symbols-outlined text-red-500 text-4xl">error_outline</span>
+                <p class="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Error al cargar datos</p>
+                <button onclick="window.loadMoral && window.loadMoral()" class="text-primary text-xs font-mono border border-primary/30 px-3 py-1 rounded hover:bg-primary/10">Reintentar</button>
+            </div>
+            <!-- Main content -->
+            <div id="moral-main-content" class="hidden">
+                <!-- Month nav -->
+                <div id="moral-month-nav" class="flex items-center justify-between px-4 py-3"></div>
+                <!-- Desktop: 2-column (chart left + distribution right) / Mobile: stacked -->
+                <div class="lg:grid lg:grid-cols-5 lg:gap-4 lg:px-4">
+                    <!-- Left: Balance + Evolution (3/5 width on desktop) -->
+                    <div class="lg:col-span-3">
+                        <div id="moral-balance" class="px-4 mb-4 lg:px-0"></div>
+                        <div id="moral-evolution" class="px-4 mb-4 lg:px-0"></div>
+                    </div>
+                    <!-- Right: Element distribution sidebar (2/5 width on desktop) -->
+                    <div class="lg:col-span-2">
+                        <div id="moral-distribution" class="px-4 mb-4 lg:px-0"></div>
+                    </div>
+                </div>
+                <!-- Element cards (full width) -->
+                <div id="moral-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-2 px-4 pb-24"></div>
+            </div>
+        </div>
+
         <!-- === FAB: CREATE REVIEW (only visible in reviews view) === -->
         <button id="fab-create-review" class="hidden fixed bottom-20 right-4 z-50 size-14 bg-primary hover:bg-primary-dark active:scale-95 transition-all shadow-lg items-center justify-center lg:bottom-6 lg:right-6">
             <span class="material-symbols-outlined text-white text-2xl">add</span>
@@ -859,51 +953,98 @@
         }
 
         // View toggle
+        const DUTY_VIEWS = ['duty', 'reviews', 'trackers', 'moral'];
+
         function setDutyView(view) {
-            const dutyView = document.getElementById('duty-view');
-            const reviewsView = document.getElementById('reviews-view');
-            const pillDuty = document.getElementById('pill-duty');
-            const pillReviews = document.getElementById('pill-reviews');
             const fabReview = document.getElementById('fab-create-review');
+            const activeClass = 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-primary bg-primary-dark/30 text-primary';
+            const inactiveClass = 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300';
 
-            const activeClass = 'flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-primary bg-primary-dark/30 text-primary';
-            const inactiveClass = 'flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300';
+            DUTY_VIEWS.forEach(v => {
+                const viewEl = document.getElementById(`${v}-view`);
+                const pillEl = document.getElementById(`pill-${v}`);
+                if (viewEl) viewEl.classList.toggle('hidden', v !== view);
+                if (pillEl) pillEl.className = (v === view) ? activeClass : inactiveClass;
+            });
 
-            if (view === 'reviews') {
-                dutyView.classList.add('hidden');
-                reviewsView.classList.remove('hidden');
-                pillDuty.className = inactiveClass;
-                pillReviews.className = activeClass;
-                if (fabReview) {
-                    fabReview.classList.remove('hidden');
-                    fabReview.classList.add('flex');
-                }
-                // Lazy init reviews
-                if (window.initInquisicion) {
-                    window.initInquisicion();
-                }
-            } else {
-                dutyView.classList.remove('hidden');
-                reviewsView.classList.add('hidden');
-                pillDuty.className = activeClass;
-                pillReviews.className = inactiveClass;
-                if (fabReview) {
-                    fabReview.classList.add('hidden');
-                    fabReview.classList.remove('flex');
-                }
+            // FAB only in reviews view
+            if (fabReview) {
+                fabReview.classList.toggle('hidden', view !== 'reviews');
+                fabReview.classList.toggle('flex', view === 'reviews');
             }
 
+            // Lazy init
+            if (view === 'reviews' && window.initInquisicion) window.initInquisicion();
+            if (view === 'trackers' && window.initTrackers) window.initTrackers();
+            if (view === 'moral' && window.initMoral) window.initMoral();
+
             localStorage.setItem('duty-view', view);
+        }
+
+        // Shared monthly data fetcher (used by both Trackers and Moral)
+        let _monthlyDataCache = {};
+        async function fetchMonthlyIncursionData(año, mes) {
+            const cacheKey = `${año}-${mes}`;
+            if (_monthlyDataCache[cacheKey]) return _monthlyDataCache[cacheKey];
+
+            // Try IndexedDB first
+            if (window.WhVaultDB) {
+                try {
+                    const cached = await window.WhVaultDB.getData('incursiones-mensuales', `incursiones-${año}-${String(mes).padStart(2,'0')}`);
+                    if (cached && cached.data && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
+                        _monthlyDataCache[cacheKey] = cached.data;
+                        return cached.data;
+                    }
+                } catch(e) {}
+            }
+
+            // Fetch from API
+            try {
+                const resp = await fetch(`/api/incursiones/mes/${año}/${mes}`);
+                if (!resp.ok) throw new Error('API error');
+                const data = await resp.json();
+                if (data.success) {
+                    _monthlyDataCache[cacheKey] = data;
+                    // Save to IndexedDB
+                    if (window.WhVaultDB) {
+                        try {
+                            await window.WhVaultDB.saveData('incursiones-mensuales', {
+                                id: `incursiones-${año}-${String(mes).padStart(2,'0')}`,
+                                data: data,
+                                timestamp: Date.now()
+                            });
+                        } catch(e) {}
+                    }
+                    return data;
+                }
+            } catch(e) {
+                console.error('[Duty] fetchMonthlyIncursionData error:', e);
+            }
+
+            // Fallback: try IndexedDB without time check
+            if (window.WhVaultDB) {
+                try {
+                    const cached = await window.WhVaultDB.getData('incursiones-mensuales', `incursiones-${año}-${String(mes).padStart(2,'0')}`);
+                    if (cached && cached.data) {
+                        _monthlyDataCache[cacheKey] = cached.data;
+                        return cached.data;
+                    }
+                } catch(e) {}
+            }
+
+            return null;
         }
     </script>
     <script src="duty.js"></script>
     <script src="inquisicion.js"></script>
+    <script src="trackers.js"></script>
+    <script src="moral.js"></script>
     <script>
         // Restore last view on load
         document.addEventListener('DOMContentLoaded', () => {
             const savedView = localStorage.getItem('duty-view');
-            if (savedView === 'reviews') {
-                setDutyView('reviews');
+            if (savedView && DUTY_VIEWS.includes(savedView) && savedView !== 'duty') {
+                setDutyView(savedView);
             }
         });
     </script>

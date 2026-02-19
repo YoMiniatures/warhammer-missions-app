@@ -1,7 +1,7 @@
 // Warhammer Vault - Service Worker v19.0
 // Duty+Reviews fusion (Inquisición merged into Duty)
 
-const CACHE_VERSION = 'v155';
+const CACHE_VERSION = 'v157';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
@@ -38,6 +38,8 @@ const PRECACHE_ASSETS = [
     '/bahia-medica.html',
     '/bahia-medica.js',
     '/economato.js',
+    '/trackers.js',
+    '/moral.js',
     '/db.js',
     '/sync-utils.js',
     '/manifest.json',

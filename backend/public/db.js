@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'wh-vault-db';
-const DB_VERSION = 12; // v12: Economato portfolio + budget stores
+const DB_VERSION = 13; // v13: Monthly incursion data store
 
 // Stores
 const STORES = {
@@ -26,7 +26,8 @@ const STORES = {
     CONDICIONES_MEDICAS: 'condiciones-medicas', // Bahía Médica - lesiones y afecciones
     HISTORIAL_MEDICO: 'historial-medico', // Bahía Médica - historial clínico
     ECONOMATO_PORTFOLIO: 'economato-portfolio', // Economato - portfolio con precios
-    ECONOMATO_BUDGET: 'economato-budget' // Economato - resumen + generadores
+    ECONOMATO_BUDGET: 'economato-budget', // Economato - resumen + generadores
+    INCURSIONES_MENSUALES: 'incursiones-mensuales' // Trackers/Moral - datos mensuales completos
 };
 
 // Freshness threshold: 5 minutes

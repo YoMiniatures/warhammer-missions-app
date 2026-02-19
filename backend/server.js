@@ -2064,6 +2064,81 @@ app.get('/api/incursiones/semana/:fecha', async (req, res) => {
   }
 });
 
+// GET /api/incursiones/mes/:año/:mes - Obtener datos completos del mes (rutinas + moods por día)
+app.get('/api/incursiones/mes/:anio/:mes', async (req, res) => {
+  try {
+    const año = parseInt(req.params.anio);
+    const mes = parseInt(req.params.mes);
+
+    if (!año || mes < 1 || mes > 12) {
+      return res.status(400).json({ success: false, error: 'Año o mes inválido' });
+    }
+
+    const rutaIncursiones = getRutaIncursiones(año);
+    const diasEnMes = new Date(año, mes, 0).getDate();
+    const mesesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    if (!rutaIncursiones || !existsSync(rutaIncursiones)) {
+      return res.json({ success: true, año, mes, mesNombre: mesesNombre[mes - 1], diasEnMes, dias: [], config: RUTINAS_CONFIG });
+    }
+
+    const mesStr = String(mes).padStart(2, '0');
+    const prefix = `${año}-${mesStr}-`;
+
+    const archivos = readdirSync(rutaIncursiones)
+      .filter(f => f.startsWith(prefix) && f.endsWith('.md'));
+
+    const moodKeys = ['imperio-disciplina','imperio-fe','imperio-deber','imperio-humildad',
+                      'caos-khorne','caos-nurgle','caos-tzeentch','caos-slaanesh'];
+
+    const dias = [];
+    for (const archivo of archivos) {
+      try {
+        const contenido = readFileSync(path.join(rutaIncursiones, archivo), 'utf-8');
+        const { data } = matter(contenido);
+        if (data.tipo !== 'incursion-diaria') continue;
+
+        const rutinas = {};
+        ALL_RITUAL_KEYS.forEach(key => { rutinas[key] = data[key] === true; });
+
+        const grupos = {};
+        Object.keys(RUTINAS_CONFIG.grupos).forEach(g => { grupos[g] = data[`${g}-completa`] === true; });
+
+        const moods = {};
+        moodKeys.forEach(key => { moods[key] = data[key] || 0; });
+
+        dias.push({
+          fecha: normalizarFecha(data.fecha),
+          diaSemana: data['dia-semana'] || '',
+          existe: true,
+          rutinas,
+          rutinasCompletadas: data['rutinas-completadas'] || 0,
+          purezaDia: data['pureza-dia'] || 0,
+          diaPerfecto: data['dia-perfecto'] === true,
+          grupos,
+          moods,
+          imperioTotal: data['imperio-total'] || 0,
+          caosTotal: data['caos-total'] || 0
+        });
+      } catch (e) { /* skip malformed */ }
+    }
+
+    dias.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+    res.json({
+      success: true,
+      año, mes,
+      mesNombre: mesesNombre[mes - 1],
+      diasEnMes,
+      dias,
+      config: RUTINAS_CONFIG
+    });
+  } catch (error) {
+    console.error('Error en GET /api/incursiones/mes:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 async function cargarIncursionPorFecha(fechaStr, res, crearSiNoExiste = true) {
   try {
     const fecha = new Date(fechaStr + 'T12:00:00'); // Evitar problemas de timezone
