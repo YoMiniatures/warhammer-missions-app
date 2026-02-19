@@ -1439,7 +1439,10 @@ async function cargarInfoCruzada(nombreCruzada, año) {
               estado: archivo.frontmatter.estado || 'activa',
               fechaInicio: archivo.frontmatter['fecha-inicio'],
               fechaObjetivo: archivo.frontmatter['fecha-objetivo'],
-              objetivoPrincipal: archivo.frontmatter['objetivo-principal']
+              objetivoPrincipal: archivo.frontmatter['objetivo-principal'],
+              pasosTotales: archivo.frontmatter['pasos-totales'],
+              pasosCompletados: archivo.frontmatter['pasos-completados'],
+              completada: archivo.frontmatter.completada === true
             };
           }
         }
@@ -1525,9 +1528,9 @@ async function cargarCruzadasDeDirectiva(directiva) {
         deadline: m.deadline || null
       }));
 
-      // Calcular estadísticas
-      const totalPasos = cruzada.pasos.length;
-      const pasosCompletados = cruzada.pasos.filter(p => p.completada).length;
+      // Calcular estadísticas - preferir frontmatter de la cruzada sobre conteo de misiones
+      const totalPasos = infoCruzada?.pasosTotales || cruzada.pasos.length;
+      const pasosCompletados = infoCruzada?.pasosCompletados != null ? infoCruzada.pasosCompletados : cruzada.pasos.filter(p => p.completada).length;
       const porcentaje = totalPasos > 0 ? Math.round((pasosCompletados / totalPasos) * 100) : 0;
 
       // Marcar paso activo
@@ -1545,6 +1548,7 @@ async function cargarCruzadasDeDirectiva(directiva) {
         porcentaje,
         pasos: cruzada.pasos,
         estado: infoCruzada?.estado || 'activa',
+        completada: infoCruzada?.completada || false,
         fechaInicio: infoCruzada?.fechaInicio,
         fechaObjetivo: infoCruzada?.fechaObjetivo
       });
@@ -1691,7 +1695,11 @@ app.get('/api/cruzadas/:id', async (req, res) => {
       }
     }
 
-    if (misionesCruzada.length === 0) {
+    // Cargar info del frontmatter de la cruzada
+    const añoCruzada = añosACargar[0] || new Date().getFullYear();
+    const infoCruzada = await cargarInfoCruzada(decodedId, añoCruzada);
+
+    if (misionesCruzada.length === 0 && !infoCruzada) {
       return res.status(404).json({
         success: false,
         error: 'Cruzada no encontrada'
@@ -1714,9 +1722,9 @@ app.get('/api/cruzadas/:id', async (req, res) => {
       misionId: m.id
     }));
 
-    // Calcular estadísticas
-    const totalPasos = pasos.length;
-    const pasosCompletados = pasos.filter(p => p.completada).length;
+    // Calcular estadísticas - preferir frontmatter sobre conteo de misiones
+    const totalPasos = infoCruzada?.pasosTotales || pasos.length;
+    const pasosCompletados = infoCruzada?.pasosCompletados != null ? infoCruzada.pasosCompletados : pasos.filter(p => p.completada).length;
     const porcentaje = totalPasos > 0 ? Math.round((pasosCompletados / totalPasos) * 100) : 0;
 
     // Marcar paso activo
@@ -1734,7 +1742,9 @@ app.get('/api/cruzadas/:id', async (req, res) => {
         totalPasos,
         pasosCompletados,
         porcentaje,
-        pasos
+        pasos,
+        estado: infoCruzada?.estado || 'activa',
+        completada: infoCruzada?.completada || false
       }
     });
   } catch (error) {
