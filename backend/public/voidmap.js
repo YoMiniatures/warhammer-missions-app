@@ -145,15 +145,50 @@ const API_URL = '/api';
 // State
 let planetas = [];
 let selectedYear = new Date().getFullYear();
-let currentView = '3d'; // '3d' | 'linear'
-let zoomState = 'zoomed'; // 'zoomed' (planet closeup) | 'overview' (system view)
+let zoomState = 'ship'; // 'ship' | 'docked' | 'engaged' | 'overview'
 let isAnimatingCamera = false;
 let firstLoad = true;
 let lastFrameTime = 0;
-let zoomedPlanetIndex = -1;
 let shipPlanetIndex = -1;
-let trackedPirataIndex = -1;  // Índice del pirata siendo trackeado
 let targetingEffect = null;    // Efecto visual de targeting alrededor del pirata
+
+// Dock & Engage system
+let dockingTarget = null;       // { type: 'planet'|'pirate', index }
+let dockedPlanetIndex = -1;     // Which planet the ship is docked at
+let engagedPirataIndex = -1;    // Which pirate the ship is engaged with
+let shipNavigatingTo = null;    // 'planet' | 'pirate' | null — currently flying toward
+let laserEffect = null;         // THREE.Line beam from ship to pirate
+let laserPulseTime = 0;
+const DOCK_SHIP_OFFSET = 0.6;   // Distance from planet surface to dock position (lateral)
+const ENGAGE_SHIP_OFFSET = 1.5; // Distance from pirate to engage position
+
+// Ship movement (free-roaming)
+let shipPosition = null; // THREE.Vector3 (initialized after THREE import)
+let shipRotation = 0;           // Facing angle (radians in XZ plane)
+let shipVelocity = null; // THREE.Vector3
+let shipTargetRotation = 0;
+const SHIP_SPEED = 3.0;
+const SHIP_ACCEL = 6.0;
+const SHIP_DECEL = 3.0;
+const SHIP_TURN_SPEED = 4.0;
+const SHIP_Y = 0.3;
+const SHIP_MAX_DIST = 10; // Max distance from origin
+
+// RTS Camera (top-down angled, free pan/zoom)
+const RTS_CAM_HEIGHT = 5.5;    // Height above target (zoomed out default)
+const RTS_CAM_ANGLE_Z = 3.0;   // Forward offset (creates angle)
+const RTS_CLOSE_HEIGHT = 0.9;  // Close zoom (focus ship / undock / disengage)
+const RTS_CLOSE_ANGLE_Z = 1.4; // Close zoom forward offset (3/4 view angle)
+
+// Waypoint navigation (click-to-move)
+let shipWaypoint = null;    // THREE.Vector3 target, null = idle
+let waypointMarker = null;  // Visual ring at target
+
+// Today's missions HUD
+let todaysMissions = [];
+
+// Engine glow
+let engineGlow = null;
 
 // Three.js objects
 let scene, camera, renderer, controls;
@@ -207,25 +242,17 @@ function setLoading(loading) {
     const loadingEl = document.getElementById('loading-state');
     const errorEl = document.getElementById('error-state');
     const view3d = document.getElementById('view-3d');
-    const viewLinear = document.getElementById('view-linear');
     const labelsEl = document.getElementById('planet-labels');
 
     if (loading) {
         loadingEl.classList.remove('hidden');
         errorEl.classList.add('hidden');
         view3d.classList.add('hidden');
-        viewLinear.classList.add('hidden');
         if (labelsEl) labelsEl.style.display = 'none';
     } else {
         loadingEl.classList.add('hidden');
         if (labelsEl) labelsEl.style.display = '';
-        if (currentView === '3d') {
-            view3d.classList.remove('hidden');
-            viewLinear.classList.add('hidden');
-        } else {
-            view3d.classList.add('hidden');
-            viewLinear.classList.remove('hidden');
-        }
+        view3d.classList.remove('hidden');
     }
 }
 
@@ -234,7 +261,6 @@ function showError() {
     document.getElementById('error-state').classList.remove('hidden');
     document.getElementById('error-state').classList.add('flex');
     document.getElementById('view-3d').classList.add('hidden');
-    document.getElementById('view-linear').classList.add('hidden');
 }
 
 function showToast(message, type = 'success') {
@@ -282,7 +308,9 @@ function initThreeScene() {
     controls.minPolarAngle = Math.PI * 0.15;
     controls.minDistance = 1.5;
     controls.maxDistance = 20;
-    controls.enablePan = false;
+    controls.enablePan = true;
+    controls.panSpeed = 1.5;
+    controls.screenSpacePanning = false; // Pan parallel to ground plane
     controls.autoRotate = false;
     controls.autoRotateSpeed = 0.3;
 
@@ -311,6 +339,10 @@ function initThreeScene() {
 
     // Skybox sphere (space nebula background)
     createSkybox();
+
+    // Ship position/velocity vectors
+    shipPosition = new THREE.Vector3();
+    shipVelocity = new THREE.Vector3();
 
     // Raycaster for click detection
     raycaster = new THREE.Raycaster();
@@ -632,9 +664,13 @@ function createPlanets(planetasData) {
             ring.rotation.x = Math.PI / 2;
             mesh.add(ring);
 
-            // Imperial Ship near current planet (loaded from GLB)
+            // Imperial Ship starts at current planet but moves freely
             shipPlanetIndex = index;
-            loadImperialShip(x, z, size);
+            if (!imperialShip) {
+                shipPosition.set(x, SHIP_Y, z);
+                shipRotation = Math.atan2(x, z); // Face toward center initially
+                loadImperialShip(x, z, size);
+            }
         }
 
         scene.add(mesh);
@@ -705,21 +741,17 @@ function positionShip(ship, x, z, size) {
         scene.remove(imperialShip);
     }
     imperialShip = ship;
-    // Position relative to planet's orbital direction so it's visible when zoomed
-    const len = Math.sqrt(x * x + z * z) || 1;
-    const dirX = x / len;
-    const dirZ = z / len;
-    // Perpendicular in XZ plane (right side from zoom camera's POV)
-    const perpX = -dirZ;
-    const perpZ = dirX;
-    const gap = size + 0.35;
-    imperialShip.position.set(
-        x + perpX * gap,
-        0.3,
-        z + perpZ * gap
-    );
-    imperialShip.lookAt(0, 0.1, 0);
+    // Position at ship's free-roaming location
+    if (shipPosition) {
+        imperialShip.position.copy(shipPosition);
+    } else {
+        imperialShip.position.set(x, SHIP_Y, z);
+    }
+    imperialShip.rotation.y = shipRotation;
     scene.add(imperialShip);
+
+    // Add engine glow after ship is placed
+    addEngineGlow();
 }
 
 function createFallbackShip() {
@@ -1024,98 +1056,361 @@ function updatePiratas(delta, now) {
 }
 
 function updateVisualsVisibility() {
-    // Pirate groups visibility
     pirataGroups.forEach((g, index) => {
-        if (zoomState === 'overview') {
-            g.visible = true; // All visible in overview
-        } else if (zoomState === 'tracking') {
-            g.visible = (index === trackedPirataIndex); // Only tracked pirata visible
+        if (zoomState === 'ship' || zoomState === 'overview') {
+            g.visible = true;
+        } else if (zoomState === 'engaged') {
+            g.visible = (index === engagedPirataIndex);
         } else {
-            g.visible = false; // Hidden when zoomed to planet
+            g.visible = false; // Hidden when docked
         }
     });
 
-    // Directiva signals: visible only when zoomed to their planet
     directivaSignals.forEach(sprite => {
         const signalPlanetIndex = sprite.userData.planetIndex;
-        sprite.visible = (zoomState === 'zoomed' && zoomedPlanetIndex === signalPlanetIndex);
+        sprite.visible = (zoomState === 'docked' && dockedPlanetIndex === signalPlanetIndex);
     });
 }
 
 // ==========================================
-//  CAMERA ZOOM FUNCTIONS
+//  DOCK & ENGAGE NAVIGATION
 // ==========================================
 
-function zoomToPlanet(planetIndex) {
-    if (isAnimatingCamera || !planetMeshes[planetIndex]) return;
+/**
+ * Compute live dock/engage position (planets orbit, so recalculate each frame)
+ */
+function computeNavigationTarget() {
+    if (!dockingTarget) return null;
 
+    if (dockingTarget.type === 'planet') {
+        const mesh = planetMeshes[dockingTarget.index];
+        if (!mesh) return null;
+        const planetPos = mesh.position;
+        const planetRadius = mesh.geometry?.parameters?.radius || 0.5;
+        // Perpendicular (lateral) offset — rotate radial direction 90° around Y
+        const radial = new THREE.Vector3(planetPos.x, 0, planetPos.z).normalize();
+        const lateral = new THREE.Vector3(-radial.z, 0, radial.x); // 90° CW rotation in XZ
+        const offset = planetRadius + DOCK_SHIP_OFFSET;
+        return new THREE.Vector3(
+            planetPos.x + lateral.x * offset,
+            SHIP_Y,
+            planetPos.z + lateral.z * offset
+        );
+    }
+
+    if (dockingTarget.type === 'pirate') {
+        const group = pirataGroups[dockingTarget.index];
+        if (!group) return null;
+        const toShip = new THREE.Vector3()
+            .subVectors(shipPosition, group.position);
+        toShip.y = 0;
+        toShip.normalize();
+        return new THREE.Vector3(
+            group.position.x + toShip.x * ENGAGE_SHIP_OFFSET,
+            SHIP_Y,
+            group.position.z + toShip.z * ENGAGE_SHIP_OFFSET
+        );
+    }
+
+    return null;
+}
+
+/**
+ * Start flying ship toward a planet for docking
+ */
+function initiateDockAtPlanet(planetIndex) {
+    if (!planetMeshes[planetIndex]) return;
+    if (shipNavigatingTo !== null) return;
+
+    shipWaypoint = null;
+    removeWaypointMarker();
+    hideSummaryPanel();
+    hideTargetingEffect();
+    destroyLaserEffect();
+    hideMissionsHUD();
+
+    dockingTarget = { type: 'planet', index: planetIndex };
+    dockedPlanetIndex = planetIndex;
+    engagedPirataIndex = -1;
+    shipNavigatingTo = 'planet';
+
+    if (zoomState === 'overview') {
+        controls.autoRotate = false;
+        animateCamera(
+            { x: shipPosition.x, y: shipPosition.y + RTS_CAM_HEIGHT, z: shipPosition.z + RTS_CAM_ANGLE_Z },
+            { x: shipPosition.x, y: shipPosition.y, z: shipPosition.z },
+            500,
+            () => { zoomState = 'ship'; showShipUI(); }
+        );
+    }
+}
+
+/**
+ * Called when ship arrives at planet dock position
+ */
+function onShipArrivedAtPlanet(planetIndex) {
     const mesh = planetMeshes[planetIndex];
-    const planetPos = mesh.position.clone();
+    if (!mesh) return;
 
-    // Camera position: offset from the planet (pulled back for fullscreen)
-    const dir = planetPos.clone().normalize();
+    // Orient ship to face planet
+    const planetPos = mesh.position;
+    shipTargetRotation = Math.atan2(planetPos.x - shipPosition.x, planetPos.z - shipPosition.z);
+
+    // Camera flies to orbit position around planet
+    const dir = new THREE.Vector3(planetPos.x, 0, planetPos.z).normalize();
     const targetCamPos = {
         x: planetPos.x + dir.x * 3.5,
         y: planetPos.y + 2.8,
         z: planetPos.z + dir.z * 3.5
     };
-    const targetLookAt = {
-        x: planetPos.x,
-        y: planetPos.y,
-        z: planetPos.z
-    };
+    const targetLookAt = { x: planetPos.x, y: planetPos.y, z: planetPos.z };
 
-    zoomedPlanetIndex = planetIndex;
+    hideShipUI();
+
     animateCamera(targetCamPos, targetLookAt, 800, () => {
-        zoomState = 'zoomed';
+        zoomState = 'docked';
+        controls.enabled = true;
         controls.autoRotate = false;
         showSummaryPanel(mesh.userData.planeta);
-        updateVisualsVisibility(); // Hide signals and pirates when zoomed
+        updateVisualsVisibility();
+        updatePanelButtonLabels();
+    });
+}
+
+/**
+ * Instant dock at planet (for initial load, no ship flight)
+ */
+function dockAtPlanet(planetIndex) {
+    const mesh = planetMeshes[planetIndex];
+    if (!mesh) return;
+
+    const planetPos = mesh.position;
+    const planetRadius = mesh.geometry?.parameters?.radius || 0.5;
+    // Perpendicular (lateral) offset — same as computeNavigationTarget
+    const radial = new THREE.Vector3(planetPos.x, 0, planetPos.z).normalize();
+    const lateral = new THREE.Vector3(-radial.z, 0, radial.x);
+    const offset = planetRadius + DOCK_SHIP_OFFSET;
+
+    shipPosition.set(
+        planetPos.x + lateral.x * offset,
+        SHIP_Y,
+        planetPos.z + lateral.z * offset
+    );
+
+    if (imperialShip) {
+        imperialShip.position.copy(shipPosition);
+        shipTargetRotation = Math.atan2(planetPos.x - shipPosition.x, planetPos.z - shipPosition.z);
+        shipRotation = shipTargetRotation;
+        imperialShip.rotation.set(0, shipRotation, 0);
+    }
+
+    dockedPlanetIndex = planetIndex;
+    engagedPirataIndex = -1;
+
+    const dir = new THREE.Vector3(planetPos.x, 0, planetPos.z).normalize();
+    camera.position.set(
+        planetPos.x + dir.x * 3.5,
+        planetPos.y + 2.8,
+        planetPos.z + dir.z * 3.5
+    );
+    controls.target.set(planetPos.x, planetPos.y, planetPos.z);
+    controls.update();
+
+    zoomState = 'docked';
+    hideMissionsHUD();
+    hideShipUI();
+    showSummaryPanel(mesh.userData.planeta);
+    updateVisualsVisibility();
+    updatePanelButtonLabels();
+}
+
+/**
+ * Undock from planet — return to free movement
+ */
+function undock() {
+    if (zoomState !== 'docked' || isAnimatingCamera) return;
+
+    hideSummaryPanel();
+    dockedPlanetIndex = -1;
+    shipNavigatingTo = null;
+    dockingTarget = null;
+
+    const targetCamPos = {
+        x: shipPosition.x,
+        y: shipPosition.y + RTS_CLOSE_HEIGHT,
+        z: shipPosition.z + RTS_CLOSE_ANGLE_Z
+    };
+    const targetLookAt = {
+        x: shipPosition.x,
+        y: shipPosition.y,
+        z: shipPosition.z
+    };
+
+    animateCamera(targetCamPos, targetLookAt, 700, () => {
+        zoomState = 'ship';
+        controls.enabled = true;
+        controls.autoRotate = false;
+        showMissionsHUD();
+        showShipUI();
+        updateVisualsVisibility();
+    });
+}
+
+/**
+ * Start flying ship toward a pirate for engagement
+ */
+function initiateEngageWithPirate(pirataIndex) {
+    if (!pirataGroups[pirataIndex]) return;
+    if (shipNavigatingTo !== null) return;
+
+    shipWaypoint = null;
+    removeWaypointMarker();
+    hideSummaryPanel();
+    hideTargetingEffect();
+    destroyLaserEffect();
+    hideMissionsHUD();
+
+    dockingTarget = { type: 'pirate', index: pirataIndex };
+    engagedPirataIndex = pirataIndex;
+    dockedPlanetIndex = -1;
+    shipNavigatingTo = 'pirate';
+
+    if (zoomState === 'overview') {
+        controls.autoRotate = false;
+        animateCamera(
+            { x: shipPosition.x, y: shipPosition.y + RTS_CAM_HEIGHT, z: shipPosition.z + RTS_CAM_ANGLE_Z },
+            { x: shipPosition.x, y: shipPosition.y, z: shipPosition.z },
+            500,
+            () => { zoomState = 'ship'; showShipUI(); }
+        );
+    }
+}
+
+/**
+ * Called when ship arrives at pirate engage position
+ */
+function onShipArrivedAtPirate(pirataIndex) {
+    const group = pirataGroups[pirataIndex];
+    if (!group) return;
+
+    // Orient ship to face pirate
+    const dx = group.position.x - shipPosition.x;
+    const dz = group.position.z - shipPosition.z;
+    shipTargetRotation = Math.atan2(dx, dz);
+
+    const pirataPos = group.position.clone();
+    const dir = new THREE.Vector3(dx, 0, dz).normalize();
+
+    const targetCamPos = {
+        x: pirataPos.x + dir.x * 2.5,
+        y: pirataPos.y + 1.8,
+        z: pirataPos.z + dir.z * 2.5
+    };
+    const targetLookAt = { x: pirataPos.x, y: pirataPos.y, z: pirataPos.z };
+
+    hideShipUI();
+
+    animateCamera(targetCamPos, targetLookAt, 800, () => {
+        zoomState = 'engaged';
+        controls.enabled = true;
+        controls.autoRotate = false;
+        showPirataSummaryPanel(group.userData.mision);
+        showTargetingEffect(pirataIndex);
+        createLaserEffect();
+        updateVisualsVisibility();
+        updatePanelButtonLabels();
+    });
+}
+
+/**
+ * Disengage from pirate — return to free movement
+ */
+function disengage() {
+    if (zoomState !== 'engaged' || isAnimatingCamera) return;
+
+    hideSummaryPanel();
+    hideTargetingEffect();
+    destroyLaserEffect();
+    engagedPirataIndex = -1;
+    shipNavigatingTo = null;
+    dockingTarget = null;
+
+    const targetCamPos = {
+        x: shipPosition.x,
+        y: shipPosition.y + RTS_CLOSE_HEIGHT,
+        z: shipPosition.z + RTS_CLOSE_ANGLE_Z
+    };
+    const targetLookAt = {
+        x: shipPosition.x,
+        y: shipPosition.y,
+        z: shipPosition.z
+    };
+
+    animateCamera(targetCamPos, targetLookAt, 700, () => {
+        zoomState = 'ship';
+        controls.enabled = true;
+        controls.autoRotate = false;
+        showMissionsHUD();
+        showShipUI();
+        updateVisualsVisibility();
     });
 }
 
 function zoomToOverview() {
     if (isAnimatingCamera) return;
 
+    shipWaypoint = null;
+    removeWaypointMarker();
     hideSummaryPanel();
     hideTargetingEffect();
+    destroyLaserEffect();
+    hideMissionsHUD();
 
-    zoomedPlanetIndex = -1;
-    trackedPirataIndex = -1;
+    dockedPlanetIndex = -1;
+    engagedPirataIndex = -1;
+    shipNavigatingTo = null;
+    dockingTarget = null;
+
     animateCamera(OVERVIEW_POS, OVERVIEW_TARGET, 800, () => {
         zoomState = 'overview';
+        controls.enabled = true;
         controls.autoRotate = true;
-        updateVisualsVisibility(); // Show signals and pirates in overview
+        showShipUI();
+        updateVisualsVisibility();
     });
 }
 
-function zoomToPirata(pirataIndex) {
-    if (isAnimatingCamera || !pirataGroups[pirataIndex]) return;
+window._voidmapZoomToOverview = zoomToOverview;
+window._voidmapInitiateEngage = initiateEngageWithPirate;
+window._voidmapInitiateDock = initiateDockAtPlanet;
+window._voidmapUndock = undock;
+window._voidmapDisengage = disengage;
 
-    const group = pirataGroups[pirataIndex];
-    const pirataPos = group.position.clone();
+/**
+ * Universal back function — dispatches based on current state
+ */
+function returnToShip() {
+    if (isAnimatingCamera) return;
+    if (zoomState === 'docked') { undock(); return; }
+    if (zoomState === 'engaged') { disengage(); return; }
+    if (zoomState === 'overview') { focusShip(); return; }
+    focusShip();
+}
 
-    // Camera position: close to pirata for tracking view
-    const dir = pirataPos.clone().normalize();
-    const targetCamPos = {
-        x: pirataPos.x + dir.x * 2.5,
-        y: pirataPos.y + 1.8,
-        z: pirataPos.z + dir.z * 2.5
-    };
-    const targetLookAt = {
-        x: pirataPos.x,
-        y: pirataPos.y,
-        z: pirataPos.z
-    };
+/**
+ * Update UNDOCK/DISENGAGE button label in summary panel
+ */
+function updatePanelButtonLabels() {
+    const btn = document.getElementById('btn-back-to-ship');
+    if (!btn) return;
 
-    trackedPirataIndex = pirataIndex;
-    animateCamera(targetCamPos, targetLookAt, 800, () => {
-        zoomState = 'tracking';  // Nuevo estado para tracking de piratas
-        controls.autoRotate = false;
-        showPirataSummaryPanel(group.userData.mision);
-        showTargetingEffect(pirataIndex);
-        updateVisualsVisibility();
-    });
+    if (zoomState === 'docked') {
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">logout</span> UNDOCK';
+    } else if (zoomState === 'engaged') {
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">gps_off</span> DISENGAGE';
+    } else {
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">rocket_launch</span> RETURN TO SHIP';
+    }
 }
 
 function animateCamera(targetPos, targetLookAt, duration, onComplete) {
@@ -1304,8 +1599,8 @@ function updateLabels() {
     const canvas = renderer.domElement;
     labelsContainer.innerHTML = '';
 
-    // Hide labels when zoomed in on a planet
-    if (zoomState === 'zoomed') return;
+    // Show labels only in ship mode and overview
+    if (zoomState === 'docked' || zoomState === 'engaged') return;
 
     planetMeshes.forEach(mesh => {
         const planeta = mesh.userData.planeta;
@@ -1341,7 +1636,9 @@ function updateLabels() {
 
         label.addEventListener('click', (e) => {
             e.stopPropagation();
-            navigateToPlanet(planeta);
+            if (zoomState === 'ship' || zoomState === 'overview') {
+                initiateDockAtPlanet(mesh.userData.index);
+            }
         });
 
         labelsContainer.appendChild(label);
@@ -1359,6 +1656,7 @@ function animate() {
     const delta = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.1) : 0.016;
     lastFrameTime = now;
 
+    // OrbitControls always active (RTS camera)
     controls.update();
 
     // Update shader sun effect (perlin cubemap + glow + rays)
@@ -1367,18 +1665,25 @@ function animate() {
     // Animate planet orbits and self-rotation
     updatePlanetOrbits(delta);
 
-    // Imperial ship follows its planet + subtle hover
-    updateShipFollow(delta);
+    // Ship waypoint navigation
+    updateShipMovement(delta);
 
-    // Animate directiva signals (NEW)
+    // Camera orbits around ship (ship mode)
+    if (zoomState === 'ship' && imperialShip && shipPosition && !isAnimatingCamera) {
+        const offset = camera.position.clone().sub(controls.target);
+        controls.target.copy(shipPosition);
+        camera.position.copy(shipPosition).add(offset);
+    }
+
+    // Animate directiva signals
     updateDirectivaSignals(delta);
 
-    // Animate pirata ships (NEW)
+    // Animate pirata ships
     updatePiratas(delta, now);
 
-    // If zoomed, camera follows the orbiting planet
-    if (zoomState === 'zoomed' && zoomedPlanetIndex >= 0 && !isAnimatingCamera) {
-        const mesh = planetMeshes[zoomedPlanetIndex];
+    // Camera follows orbiting planet while docked
+    if (zoomState === 'docked' && dockedPlanetIndex >= 0 && !isAnimatingCamera) {
+        const mesh = planetMeshes[dockedPlanetIndex];
         if (mesh) {
             const offset = camera.position.clone().sub(controls.target);
             controls.target.copy(mesh.position);
@@ -1386,24 +1691,23 @@ function animate() {
         }
     }
 
-    // If tracking pirata, camera follows it
-    if (zoomState === 'tracking' && trackedPirataIndex >= 0 && !isAnimatingCamera) {
-        const group = pirataGroups[trackedPirataIndex];
+    // Camera follows pirate while engaged + laser + targeting
+    if (zoomState === 'engaged' && engagedPirataIndex >= 0 && !isAnimatingCamera) {
+        const group = pirataGroups[engagedPirataIndex];
         if (group) {
             const offset = camera.position.clone().sub(controls.target);
             controls.target.copy(group.position);
             camera.position.copy(group.position).add(offset);
 
-            // Update targeting effect position
             if (targetingEffect) {
                 targetingEffect.position.copy(group.position);
-                // Animate rings (pulse effect)
                 const pulse = Math.sin(now * 0.002) * 0.1;
                 targetingEffect.userData.rings.forEach((ring, i) => {
                     ring.material.opacity = 0.6 + pulse * (1 - i * 0.2);
                 });
             }
         }
+        updateLaserEffect(delta);
     }
 
     renderer.render(scene, camera);
@@ -1430,32 +1734,125 @@ function updatePlanetOrbits(delta) {
 }
 
 /**
- * Imperial ship follows its planet with subtle hover
+ * Ship movement: free waypoint (ship mode) + tracking waypoint (navigating to dock/engage)
  */
-function updateShipFollow(delta) {
-    if (!imperialShip || shipPlanetIndex < 0 || !planetMeshes[shipPlanetIndex]) return;
+function updateShipMovement(delta) {
+    if (!imperialShip || !shipPosition) return;
 
-    const mesh = planetMeshes[shipPlanetIndex];
-    const px = mesh.position.x;
-    const pz = mesh.position.z;
+    const isNavigating = shipNavigatingTo !== null;
+    if (zoomState !== 'ship' && !isNavigating) return;
 
-    // Get planet size from geometry
-    const size = mesh.geometry.parameters?.radius || 0.3;
+    let hasInput = false;
 
-    // Position relative to planet's orbital direction
-    const len = Math.sqrt(px * px + pz * pz) || 1;
-    const dirX = px / len;
-    const dirZ = pz / len;
-    const perpX = -dirZ;
-    const perpZ = dirX;
-    const gap = size + 0.35;
+    if (isNavigating) {
+        // TRACKING WAYPOINT: recompute target each frame (planets orbit!)
+        const effectiveTarget = computeNavigationTarget();
+        if (effectiveTarget) {
+            const dx = effectiveTarget.x - shipPosition.x;
+            const dz = effectiveTarget.z - shipPosition.z;
+            const distToTarget = Math.sqrt(dx * dx + dz * dz);
 
-    imperialShip.position.x = px + perpX * gap;
-    imperialShip.position.y = 0.3 + Math.sin(Date.now() * 0.0008) * 0.015;
-    imperialShip.position.z = pz + perpZ * gap;
-    imperialShip.rotation.z = Math.sin(Date.now() * 0.0006) * 0.008;
-    imperialShip.lookAt(0, 0.1, 0);
+            if (distToTarget < 0.25) {
+                // ARRIVED — trigger dock or engage
+                shipVelocity.set(0, 0, 0);
+                shipWaypoint = null;
+                removeWaypointMarker();
+                const navType = shipNavigatingTo;
+                const targetIndex = dockingTarget?.index;
+                shipNavigatingTo = null;
+                if (navType === 'planet') {
+                    onShipArrivedAtPlanet(targetIndex);
+                } else if (navType === 'pirate') {
+                    onShipArrivedAtPirate(targetIndex);
+                }
+                return;
+            }
+
+            // Steer toward live target
+            const dirX = dx / distToTarget;
+            const dirZ = dz / distToTarget;
+            const speedFactor = Math.min(distToTarget / 1.5, 1);
+            const targetVelX = dirX * SHIP_SPEED * speedFactor;
+            const targetVelZ = dirZ * SHIP_SPEED * speedFactor;
+            shipVelocity.x += (targetVelX - shipVelocity.x) * SHIP_ACCEL * delta;
+            shipVelocity.z += (targetVelZ - shipVelocity.z) * SHIP_ACCEL * delta;
+            shipTargetRotation = Math.atan2(dirX, dirZ);
+            hasInput = true;
+        }
+    } else if (shipWaypoint) {
+        // STATIC WAYPOINT: free movement click-to-move
+        const dx = shipWaypoint.x - shipPosition.x;
+        const dz = shipWaypoint.z - shipPosition.z;
+        const distToTarget = Math.sqrt(dx * dx + dz * dz);
+
+        if (distToTarget < 0.15) {
+            shipWaypoint = null;
+            removeWaypointMarker();
+        } else {
+            const dirX = dx / distToTarget;
+            const dirZ = dz / distToTarget;
+            const speedFactor = Math.min(distToTarget / 1.5, 1);
+            const targetVelX = dirX * SHIP_SPEED * speedFactor;
+            const targetVelZ = dirZ * SHIP_SPEED * speedFactor;
+            shipVelocity.x += (targetVelX - shipVelocity.x) * SHIP_ACCEL * delta;
+            shipVelocity.z += (targetVelZ - shipVelocity.z) * SHIP_ACCEL * delta;
+            shipTargetRotation = Math.atan2(dirX, dirZ);
+            hasInput = true;
+        }
+    }
+
+    if (!hasInput) {
+        shipVelocity.x *= Math.max(0, 1 - SHIP_DECEL * delta);
+        shipVelocity.z *= Math.max(0, 1 - SHIP_DECEL * delta);
+        if (shipVelocity.length() < 0.01) {
+            shipVelocity.set(0, 0, 0);
+        }
+    }
+
+    // Apply velocity
+    shipPosition.x += shipVelocity.x * delta;
+    shipPosition.z += shipVelocity.z * delta;
+    shipPosition.y = SHIP_Y;
+
+    // Clamp to system bounds
+    const dist = Math.sqrt(shipPosition.x ** 2 + shipPosition.z ** 2);
+    if (dist > SHIP_MAX_DIST) {
+        shipPosition.x *= SHIP_MAX_DIST / dist;
+        shipPosition.z *= SHIP_MAX_DIST / dist;
+    }
+
+    // Smooth rotation
+    shipRotation = lerpAngle(shipRotation, shipTargetRotation, SHIP_TURN_SPEED * delta);
+
+    // Apply to Three.js object
+    imperialShip.position.copy(shipPosition);
+    imperialShip.position.y += Math.sin(Date.now() * 0.0008) * 0.015; // hover
+    imperialShip.rotation.set(0, shipRotation, Math.sin(Date.now() * 0.0006) * 0.008);
+
+    // Engine glow intensity based on speed
+    if (engineGlow) {
+        const speed = shipVelocity.length();
+        engineGlow.intensity = (speed / SHIP_SPEED) * 2;
+    }
+
+    // Animate waypoint marker (rotate outer ring + pulse)
+    if (waypointMarker) {
+        const outer = waypointMarker.getObjectByName('wp-outer');
+        if (outer) {
+            outer.rotation.z += 0.015;
+            const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+            outer.material.opacity = 0.3 + 0.35 * pulse;
+        }
+    }
 }
+
+function lerpAngle(a, b, t) {
+    let diff = b - a;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return a + diff * Math.min(t, 1);
+}
+
 
 function stopAnimation() {
     if (animationId) {
@@ -1522,7 +1919,7 @@ function onPlanetClick(event) {
         const collider = pirataIntersects[0].object;
         const pirataIndex = pirataGroups.findIndex(g => g.children[0] === collider);
         if (pirataIndex >= 0) {
-            zoomToPirata(pirataIndex); // Hacer zoom en lugar de modal
+            initiateEngageWithPirate(pirataIndex);
             return;
         }
     }
@@ -1533,11 +1930,28 @@ function onPlanetClick(event) {
     if (intersects.length > 0) {
         const mesh = intersects[0].object;
 
-        if (zoomState === 'overview') {
-            // Zoom to the clicked planet
-            zoomToPlanet(mesh.userData.index);
+        if (zoomState === 'ship' || zoomState === 'overview') {
+            initiateDockAtPlanet(mesh.userData.index);
         }
-        // When zoomed, navigation only via "Planet Detail" button in summary panel
+        // When docked/engaged, navigation only via UNDOCK/DISENGAGE
+        return;
+    }
+
+    // Nothing hit — click-to-move (ship mode only)
+    if (zoomState === 'ship') {
+        const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SHIP_Y);
+        const intersectPoint = new THREE.Vector3();
+        const hit = raycaster.ray.intersectPlane(groundPlane, intersectPoint);
+        if (hit) {
+            // Clamp to system bounds
+            const d = Math.sqrt(intersectPoint.x ** 2 + intersectPoint.z ** 2);
+            if (d > SHIP_MAX_DIST) {
+                intersectPoint.x *= SHIP_MAX_DIST / d;
+                intersectPoint.z *= SHIP_MAX_DIST / d;
+            }
+            shipWaypoint = intersectPoint.clone();
+            placeWaypointMarker(intersectPoint);
+        }
     }
 }
 
@@ -1813,7 +2227,7 @@ async function showEstadoModal(planeta) {
                 openPlanetSidebar(planeta.id, planeta.año);
 
                 // Reload planets in background to update 3D view
-                loadPlanets(currentYear);
+                cargarPlanetas();
             } else {
                 showToast(`Error: ${result.error}`, 'error');
             }
@@ -1961,100 +2375,6 @@ function onResize() {
 }
 
 // ==========================================
-//  LINEAR VIEW
-// ==========================================
-
-function renderLinearView() {
-    const container = document.getElementById('view-linear');
-    if (!container) return;
-
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
-    const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-
-    container.innerHTML = planetas.map(p => {
-        const isCurrentMonth = p.numeroMes === currentMonth && selectedYear === currentYear;
-        const estadoColor = {
-            'conquistado': 'bg-green-500',
-            'en-conquista': 'bg-amber-500',
-            'bloqueado': 'bg-red-500',
-            'pendiente': 'bg-gray-600'
-        }[p.estado] || 'bg-gray-600';
-
-        const estadoEmoji = { 'conquistado': '✅', 'en-conquista': '⚔️', 'bloqueado': '🔒', 'pendiente': '⏳' }[p.estado] || '⏳';
-
-        return `
-        <a href="planeta-detalle.html?id=${encodeURIComponent(p.id)}&año=${p.año}"
-           class="planet-link flex items-center gap-3 p-3 bg-[#1a1718] border ${isCurrentMonth ? 'border-secondary/50 shadow-[0_0_10px_rgba(197,160,101,0.1)]' : 'border-[#332224]'} hover:bg-[#261e1f] transition-colors"
-           data-planet-id="${p.id}"
-           data-planet-año="${p.año}">
-            <div class="flex-shrink-0 w-8 text-center">
-                <div class="text-secondary text-lg font-bold font-display">${String(p.numeroMes).padStart(2,'0')}</div>
-                <div class="text-[7px] text-gray-500 uppercase font-mono">${MESES[p.numeroMes-1].substring(0,3)}</div>
-            </div>
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                    <span class="text-white text-sm font-bold">${p.nombre}</span>
-                    <span class="text-[10px]">${estadoEmoji}</span>
-                    ${isCurrentMonth ? '<span class="text-[7px] text-secondary font-mono border border-secondary/30 px-1">NOW</span>' : ''}
-                </div>
-                <div class="flex items-center gap-2 mt-1">
-                    <div class="flex-1 h-1 bg-[#332224] rounded-full overflow-hidden">
-                        <div class="h-full bg-secondary rounded-full transition-all" style="width:${p.progreso}%"></div>
-                    </div>
-                    <span class="text-[10px] text-gray-400 font-mono">${p.misionesCompletadas}/${p.totalMisiones}</span>
-                </div>
-            </div>
-            <span class="material-symbols-outlined text-gray-600 text-lg">chevron_right</span>
-        </a>`;
-    }).join('');
-
-    // Desktop: interceptar clicks en planet links para abrir sidebar
-    if (window.innerWidth >= 1024) {
-        container.querySelectorAll('.planet-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const planetaId = link.dataset.planetId;
-                const año = parseInt(link.dataset.planetAño);
-                const planeta = planetas.find(p => p.id === planetaId && p.año === año);
-                if (planeta) {
-                    navigateToPlanet(planeta);
-                }
-            });
-        });
-    }
-}
-
-// ==========================================
-//  VIEW TOGGLE
-// ==========================================
-
-function toggleView() {
-    const view3d = document.getElementById('view-3d');
-    const viewLinear = document.getElementById('view-linear');
-    const toggleIcon = document.getElementById('toggle-icon');
-    const toggleLabel = document.getElementById('toggle-label');
-
-    if (currentView === '3d') {
-        currentView = 'linear';
-        view3d.classList.add('hidden');
-        viewLinear.classList.remove('hidden');
-        toggleIcon.textContent = 'language';
-        toggleLabel.textContent = '3D MAP';
-        stopAnimation();
-        hideSummaryPanel();
-        renderLinearView();
-    } else {
-        currentView = '3d';
-        view3d.classList.remove('hidden');
-        viewLinear.classList.add('hidden');
-        toggleIcon.textContent = 'view_list';
-        toggleLabel.textContent = 'LINEAR';
-        animate();
-    }
-}
-
-// ==========================================
 //  YEAR SWITCHING
 // ==========================================
 
@@ -2063,10 +2383,23 @@ function switchYear(año) {
 
     // Reset zoom state
     zoomState = 'overview';
+    controls.enabled = true;
     controls.autoRotate = true;
     hideSummaryPanel();
+    hideMissionsHUD();
+    hideShipUI();
+    hideTargetingEffect();
+    destroyLaserEffect();
+    dockedPlanetIndex = -1;
+    engagedPirataIndex = -1;
+    shipNavigatingTo = null;
+    dockingTarget = null;
+    shipWaypoint = null;
+    removeWaypointMarker();
     camera.position.set(OVERVIEW_POS.x, OVERVIEW_POS.y, OVERVIEW_POS.z);
     controls.target.set(OVERVIEW_TARGET.x, OVERVIEW_TARGET.y, OVERVIEW_TARGET.z);
+    shipPosition.set(0, SHIP_Y, 0);
+    shipVelocity.set(0, 0, 0);
 
     // Clean up imperial ship
     if (imperialShip) {
@@ -2141,7 +2474,8 @@ async function cargarPlanetas() {
                         // Load directivas and misiones even with cached planets
                         await Promise.all([
                             cargarDirectivas(),
-                            cargarMisionesSecundarias()
+                            cargarMisionesSecundarias(),
+                            loadTodaysMissions()
                         ]);
 
                         renderData();
@@ -2211,26 +2545,35 @@ function renderData() {
         // Create pirata ships (NEW)
         createPirataShips();
 
-        // On first load, zoom to current month's planet
+        // On first load, dock at current month's planet
         if (firstLoad && selectedYear === new Date().getFullYear()) {
             firstLoad = false;
-            const currentMonth = new Date().getMonth(); // 0-indexed = planet index
-            // Small delay to let Three.js render first frame
             setTimeout(() => {
-                zoomToPlanet(currentMonth);
+                renderMissionsHUD();
+                if (shipPlanetIndex >= 0) {
+                    dockAtPlanet(shipPlanetIndex);
+                } else {
+                    // No current month planet — fallback to ship mode
+                    zoomState = 'ship';
+                    controls.enabled = true;
+                    controls.autoRotate = false;
+                    if (shipPosition) {
+                        camera.position.set(shipPosition.x, shipPosition.y + RTS_CAM_HEIGHT, shipPosition.z + RTS_CAM_ANGLE_Z);
+                        controls.target.set(shipPosition.x, shipPosition.y, shipPosition.z);
+                    }
+                    showMissionsHUD();
+                    showShipUI();
+                    updateVisualsVisibility();
+                }
             }, 300);
         } else if (firstLoad) {
             firstLoad = false;
-            // Different year selected - show overview
             zoomState = 'overview';
+            controls.enabled = true;
             controls.autoRotate = true;
         }
     }
 
-    // Update linear view if visible
-    if (currentView === 'linear') {
-        renderLinearView();
-    }
 }
 
 // ==========================================
@@ -2345,15 +2688,14 @@ async function init() {
     // Init DB
     if (window.WhVaultDB) {
         try {
-            await window.WhVaultDB.init();
+            await window.WhVaultDB.initDB();
         } catch (e) {
             console.warn('[VoidMap] DB init error:', e);
         }
     }
 
     // Setup event listeners
-    document.getElementById('view-toggle')?.addEventListener('click', toggleView);
-    document.getElementById('btn-zoom-out')?.addEventListener('click', zoomToOverview);
+    document.getElementById('btn-back-to-ship')?.addEventListener('click', returnToShip);
 
     document.querySelectorAll('.year-pill').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2365,13 +2707,14 @@ async function init() {
     // Init Three.js scene
     initThreeScene();
 
-    // Load data
+    // Setup keyboard shortcuts
+    setupKeyboard();
+
+    // Load data (planets + today's missions in parallel)
     await cargarPlanetas();
 
-    // Start animation if in 3D view
-    if (currentView === '3d') {
-        animate();
-    }
+    // Start animation
+    animate();
 
     // Connection status
     if (window.WhVaultSync) {
@@ -2386,6 +2729,265 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
+}
+
+// ==========================================
+//  KEYBOARD & SHIP UI
+// ==========================================
+
+function setupKeyboard() {
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') {
+            if (zoomState === 'docked') undock();
+            else if (zoomState === 'engaged') disengage();
+            else if (zoomState === 'overview') focusShip();
+        }
+    });
+}
+
+function showShipUI() {
+    const btns = document.getElementById('ship-mode-buttons');
+    if (btns) btns.classList.remove('hidden');
+}
+
+function hideShipUI() {
+    const btns = document.getElementById('ship-mode-buttons');
+    if (btns) btns.classList.add('hidden');
+}
+
+// ==========================================
+//  WAYPOINT MARKER
+// ==========================================
+
+function placeWaypointMarker(point) {
+    removeWaypointMarker();
+
+    const WP_COLOR = 0x55ccff;  // Cyan-blue (RTS style)
+    const baseMat = { transparent: true, depthWrite: false, side: THREE.DoubleSide };
+
+    const group = new THREE.Group();
+    group.position.set(point.x, SHIP_Y + 0.01, point.z);
+    group.rotation.x = -Math.PI / 2;
+
+    // Outer thin ring (rotates)
+    const outerRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.05, 0.058, 32),
+        new THREE.MeshBasicMaterial({ ...baseMat, color: WP_COLOR, opacity: 0.6 })
+    );
+    outerRing.name = 'wp-outer';
+    group.add(outerRing);
+
+    // Inner dot
+    const dot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.008, 12),
+        new THREE.MeshBasicMaterial({ ...baseMat, color: WP_COLOR, opacity: 0.8 })
+    );
+    group.add(dot);
+
+    // 4 crosshair ticks
+    const tickGeo = new THREE.PlaneGeometry(0.002, 0.018);
+    const tickMat = new THREE.MeshBasicMaterial({ ...baseMat, color: WP_COLOR, opacity: 0.5 });
+    for (let i = 0; i < 4; i++) {
+        const tick = new THREE.Mesh(tickGeo, tickMat);
+        const angle = (Math.PI / 2) * i;
+        const dist = 0.032;
+        tick.position.set(Math.cos(angle) * dist, Math.sin(angle) * dist, 0);
+        tick.rotation.z = angle;
+        group.add(tick);
+    }
+
+    scene.add(group);
+    waypointMarker = group;
+}
+
+function removeWaypointMarker() {
+    if (waypointMarker) {
+        scene.remove(waypointMarker);
+        waypointMarker.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+        waypointMarker = null;
+    }
+}
+
+// ==========================================
+//  FOCUS SHIP (re-center camera)
+// ==========================================
+
+function focusShip() {
+    if (!imperialShip || !shipPosition || isAnimatingCamera) return;
+
+    // From docked/engaged, use their specific exit logic first
+    if (zoomState === 'docked') { undock(); return; }
+    if (zoomState === 'engaged') { disengage(); return; }
+
+    // From ship or overview — fly close to ship
+    const wasOverview = zoomState === 'overview';
+    const targetCamPos = {
+        x: shipPosition.x,
+        y: shipPosition.y + RTS_CLOSE_HEIGHT,
+        z: shipPosition.z + RTS_CLOSE_ANGLE_Z
+    };
+    const targetLookAt = {
+        x: shipPosition.x,
+        y: shipPosition.y,
+        z: shipPosition.z
+    };
+    animateCamera(targetCamPos, targetLookAt, wasOverview ? 800 : 600, () => {
+        zoomState = 'ship';
+        controls.enabled = true;
+        controls.autoRotate = false;
+        if (wasOverview) {
+            showMissionsHUD();
+            showShipUI();
+            updateVisualsVisibility();
+        }
+    });
+}
+
+window._voidmapFocusShip = focusShip;
+
+// ==========================================
+//  TODAY'S MISSIONS HUD
+// ==========================================
+
+async function loadTodaysMissions() {
+    try {
+        const res = await fetch(`${API_URL}/misiones/urgentes`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.success && data.misiones) {
+            todaysMissions = data.misiones.slice(0, 6);
+        }
+    } catch (error) {
+        console.warn('[VoidMap] Error loading today missions:', error);
+        todaysMissions = [];
+    }
+}
+
+function renderMissionsHUD() {
+    const list = document.getElementById('hud-missions-list');
+    const count = document.getElementById('hud-mission-count');
+    if (!list || !count) return;
+
+    count.textContent = todaysMissions.length;
+
+    if (todaysMissions.length === 0) {
+        list.innerHTML = '<div class="px-3 py-3 text-center text-gray-600 text-[10px] font-mono">NO ACTIVE THREATS</div>';
+        return;
+    }
+
+    const hoy = getHoy();
+    list.innerHTML = todaysMissions.map(m => {
+        const xp = m['puntos-xp'] || 0;
+        const isOverdue = m.deadline && m.deadline < hoy;
+        return `
+            <div class="flex items-center gap-2 px-3 py-2">
+                <div class="w-1 h-6 rounded-full flex-shrink-0 ${isOverdue ? 'bg-primary' : 'bg-secondary'}"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs text-gray-200 truncate">${m.titulo}</div>
+                    <div class="flex items-center gap-2 text-[9px]">
+                        ${isOverdue ? '<span class="text-primary font-mono">OVERDUE</span>' : '<span class="text-gray-500 font-mono">TODAY</span>'}
+                        ${xp ? `<span class="text-secondary">+${xp}XP</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getHoy() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+function showMissionsHUD() {
+    const el = document.getElementById('missions-hud');
+    if (el) el.classList.remove('hidden');
+}
+
+function hideMissionsHUD() {
+    const el = document.getElementById('missions-hud');
+    if (el) el.classList.add('hidden');
+    // Also close the panel when hiding the whole HUD
+    const panel = document.getElementById('missions-hud-panel');
+    if (panel) panel.classList.add('hidden');
+}
+
+function toggleMissionsPanel() {
+    const panel = document.getElementById('missions-hud-panel');
+    if (panel) panel.classList.toggle('hidden');
+}
+
+window._voidmapToggleMissionsPanel = toggleMissionsPanel;
+
+// ==========================================
+//  ENGINE GLOW
+// ==========================================
+
+function addEngineGlow() {
+    if (!imperialShip || engineGlow) return;
+    engineGlow = new THREE.PointLight(0x4488ff, 0, 1.5);
+    engineGlow.position.set(-0.3, 0, 0);
+    imperialShip.add(engineGlow);
+}
+
+// ==========================================
+//  LASER EFFECT (engaged state)
+// ==========================================
+
+function createLaserEffect() {
+    destroyLaserEffect();
+    if (engagedPirataIndex < 0 || !pirataGroups[engagedPirataIndex]) return;
+
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0xff2200,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const geo = new THREE.CylinderGeometry(0.012, 0.012, 1, 6, 1);
+    laserEffect = new THREE.Mesh(geo, mat);
+    laserEffect.renderOrder = 5;
+    laserEffect.frustumCulled = false;
+    scene.add(laserEffect);
+    laserPulseTime = 0;
+}
+
+function updateLaserEffect(delta) {
+    if (!laserEffect || engagedPirataIndex < 0) return;
+    const pirataGroup = pirataGroups[engagedPirataIndex];
+    if (!pirataGroup || !shipPosition) return;
+
+    laserPulseTime += delta;
+
+    const start = shipPosition.clone();
+    const end = pirataGroup.position.clone();
+    const mid = start.clone().add(end).multiplyScalar(0.5);
+    const dir = end.clone().sub(start);
+    const length = dir.length();
+
+    laserEffect.position.copy(mid);
+    laserEffect.scale.y = length;
+    laserEffect.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        dir.normalize()
+    );
+
+    // Pulse opacity
+    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(laserPulseTime * 8));
+    laserEffect.material.opacity = pulse;
+}
+
+function destroyLaserEffect() {
+    if (laserEffect) {
+        scene.remove(laserEffect);
+        laserEffect.geometry?.dispose();
+        laserEffect.material?.dispose();
+        laserEffect = null;
+    }
 }
 
 // Desktop sidebar close handler

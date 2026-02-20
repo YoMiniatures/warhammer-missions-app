@@ -696,6 +696,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Cargar memo badge count
     initMemoBadge();
 
+    // Restore bridge view from localStorage
+    const savedBridgeView = localStorage.getItem('bridgeView');
+    if (savedBridgeView === 'carta-astral' || savedBridgeView === 'semana' || savedBridgeView === 'anual') {
+        setBridgeView(savedBridgeView);
+    }
+
     // Cargar datos iniciales
     cargarDatos();
 
@@ -934,5 +940,731 @@ async function crearMision() {
     } catch (error) {
         console.error('Error creando misión:', error);
         showToast('Error de conexión', 'error');
+    }
+}
+
+// ==========================================
+//  CARTA ASTRAL - System Overview
+// ==========================================
+
+const BRIDGE_VIEWS = ['bridge', 'semana', 'carta-astral', 'anual'];
+let _cartaAstralInitialized = false;
+let _cartaAstralYear = new Date().getFullYear();
+let _cartaAstralCache = {};
+let _semanaInitialized = false;
+let _semanaCache = null;
+let _anualInitialized = false;
+let _anualYear = new Date().getFullYear();
+let _anualCache = {};
+
+const SYSTEM_NAMES = {
+    2025: 'SISTEMA AQUILA',
+    2026: 'SISTEMA HIPPARION'
+};
+
+const MESES_NOMBRES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+function setBridgeView(view) {
+    BRIDGE_VIEWS.forEach(v => {
+        const el = document.getElementById(`${v}-view`);
+        const pill = document.getElementById(`pill-${v}`);
+        if (el) el.classList.toggle('hidden', v !== view);
+        if (pill) {
+            if (v === view) {
+                pill.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-primary bg-primary-dark/30 text-primary';
+            } else {
+                pill.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 border-[#2d2d2d] text-gray-500 hover:border-gray-500 hover:text-gray-300';
+            }
+        }
+    });
+
+    // Hide FAB when in carta-astral
+    const fab = document.querySelector('.fab');
+    if (fab) fab.style.display = view === 'bridge' ? '' : 'none';
+
+    localStorage.setItem('bridgeView', view);
+
+    // Lazy init carta astral
+    if (view === 'carta-astral' && !_cartaAstralInitialized) {
+        _cartaAstralInitialized = true;
+        initCartaAstral();
+    }
+
+    // Lazy init semana
+    if (view === 'semana' && !_semanaInitialized) {
+        _semanaInitialized = true;
+        initSemana();
+    }
+
+    // Lazy init anual
+    if (view === 'anual' && !_anualInitialized) {
+        _anualInitialized = true;
+        initAnual();
+    }
+}
+
+async function initCartaAstral() {
+    await loadCartaAstralData(_cartaAstralYear);
+}
+
+async function loadCartaAstralData(año) {
+    const grid = document.getElementById('carta-astral-grid');
+    const loading = document.getElementById('carta-astral-loading');
+
+    // Check memory cache
+    if (_cartaAstralCache[año]) {
+        renderCartaAstral(_cartaAstralCache[año], año);
+        return;
+    }
+
+    // Show loading
+    if (grid) grid.innerHTML = '';
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+        const DB = window.WhVaultDB;
+
+        // Try IndexedDB cache first
+        if (DB) {
+            try {
+                const cached = await DB.getCachedData(DB.STORES.PLANETAS);
+                if (cached && cached.data && cached.data.length > 0) {
+                    const planetasAño = cached.data.filter(p => p.año === año);
+                    if (planetasAño.length > 0) {
+                        _cartaAstralCache[año] = planetasAño;
+                        renderCartaAstral(planetasAño, año);
+                        if (loading) loading.classList.add('hidden');
+                        if (cached.isFresh) return;
+                    }
+                }
+            } catch (e) {
+                console.warn('[CartaAstral] Cache read error:', e);
+            }
+        }
+
+        // Fetch from API
+        const res = await fetch(`${API_URL}/planetas?año=${año}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.success && data.planetas) {
+            _cartaAstralCache[año] = data.planetas;
+
+            // Cache in IndexedDB
+            if (DB) {
+                try {
+                    await DB.cacheApiData(DB.STORES.PLANETAS, data.planetas);
+                } catch (e) {
+                    console.warn('[CartaAstral] Cache write error:', e);
+                }
+            }
+
+            renderCartaAstral(data.planetas, año);
+        }
+    } catch (error) {
+        console.error('[CartaAstral] Error loading:', error);
+        if (!_cartaAstralCache[año]) {
+            if (grid) grid.innerHTML = '<div class="col-span-full text-center py-10 text-primary font-mono text-sm">/// AUSPEX FAILURE ///</div>';
+        }
+    } finally {
+        if (loading) loading.classList.add('hidden');
+    }
+}
+
+function renderCartaAstral(planetas, año) {
+    const grid = document.getElementById('carta-astral-grid');
+    if (!grid) return;
+
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const isCurrentYear = año === currentYear;
+
+    // Stats
+    const totalMisiones = planetas.reduce((sum, p) => sum + (p.totalMisiones || 0), 0);
+    const completadas = planetas.reduce((sum, p) => sum + (p.misionesCompletadas || 0), 0);
+    const conquistados = planetas.filter(p => p.estado === 'conquistado').length;
+    const progresoGlobal = totalMisiones > 0 ? Math.round((completadas / totalMisiones) * 100) : 0;
+
+    const statComp = document.getElementById('ca-stat-completados');
+    const statMis = document.getElementById('ca-stat-misiones');
+    const statProg = document.getElementById('ca-stat-progreso');
+    if (statComp) statComp.textContent = `${conquistados}/12`;
+    if (statMis) statMis.textContent = `${completadas}/${totalMisiones}`;
+    if (statProg) statProg.textContent = `${progresoGlobal}%`;
+
+    // Sort by month number
+    const sorted = [...planetas].sort((a, b) => (a.numeroMes || 0) - (b.numeroMes || 0));
+
+    grid.innerHTML = sorted.map(p => {
+        const mesNum = p.numeroMes || 0;
+        const isCurrent = isCurrentYear && mesNum === currentMonth;
+        const mesNombre = MESES_NOMBRES[mesNum - 1] || '???';
+        const progreso = p.progreso || 0;
+
+        const estadoMap = {
+            'conquistado': { label: 'CONQUISTADO', color: 'text-green-400', bg: 'bg-green-500/20', border: 'border-green-500/30' },
+            'en-conquista': { label: 'EN CURSO', color: 'text-amber-400', bg: 'bg-amber-500/20', border: 'border-amber-500/30' },
+            'bloqueado': { label: 'BLOQUEADO', color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30' },
+            'pendiente': { label: 'PENDIENTE', color: 'text-gray-500', bg: 'bg-gray-500/10', border: 'border-gray-500/20' }
+        };
+        const estado = estadoMap[p.estado] || estadoMap['pendiente'];
+
+        const progressColor = p.estado === 'conquistado' ? 'bg-green-500' : 'bg-secondary';
+
+        return `
+        <a href="planeta-detalle.html?id=${encodeURIComponent(p.id)}&año=${p.año}"
+           class="planet-card ${p.estado || 'planificado'} ${isCurrent ? 'current-month' : ''}">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-secondary text-lg font-bold font-display">${String(mesNum).padStart(2,'0')}</span>
+                ${isCurrent ? '<span class="text-[7px] text-secondary font-mono border border-secondary/30 px-1.5 py-0.5 animate-pulse">NOW</span>' : ''}
+            </div>
+            <div class="text-white text-xs font-bold truncate mb-0.5" title="${p.nombre}">${p.nombre}</div>
+            <div class="text-[8px] text-gray-600 font-mono uppercase mb-2">${mesNombre}</div>
+            <span class="inline-block text-[7px] font-mono px-1.5 py-0.5 rounded-sm ${estado.color} ${estado.bg} ${estado.border} border mb-2">${estado.label}</span>
+            <div class="flex items-center gap-1.5">
+                <div class="flex-1 h-1 bg-[#332224] rounded-full overflow-hidden">
+                    <div class="h-full ${progressColor} rounded-full transition-all" style="width:${progreso}%"></div>
+                </div>
+                <span class="text-[8px] text-gray-500 font-mono">${p.misionesCompletadas || 0}/${p.totalMisiones || 0}</span>
+            </div>
+        </a>`;
+    }).join('');
+}
+
+function changeCartaAstralYear(año) {
+    _cartaAstralYear = año;
+
+    // Update year pills
+    document.querySelectorAll('.carta-year-pill').forEach(btn => {
+        const btnYear = parseInt(btn.dataset.year);
+        if (btnYear === año) {
+            btn.classList.add('carta-year-pill-active');
+        } else {
+            btn.classList.remove('carta-year-pill-active');
+        }
+    });
+
+    loadCartaAstralData(año);
+}
+
+// ==========================================
+//  SEMANA VIEW
+// ==========================================
+
+const DIAS_NOMBRES = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+
+const CATEGORIA_COLORS = {
+    critica: '#dc2626',
+    importante: '#ca8a04',
+    opcional: '#6b7280'
+};
+
+const EVENTO_COLORS = {
+    aviso: '#dc143c',
+    evento: '#4169e1',
+    vacaciones: '#00ced1',
+    'cumpleaños': '#ff69b4'
+};
+
+async function initSemana() {
+    await loadSemanaData();
+}
+
+async function loadSemanaData() {
+    const content = document.getElementById('semana-content');
+    const loading = document.getElementById('semana-loading');
+
+    if (_semanaCache) {
+        renderSemana(_semanaCache.misiones, _semanaCache.eventos);
+        return;
+    }
+
+    if (content) content.innerHTML = '';
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+        const [misionesRes, eventosRes] = await Promise.all([
+            fetch(`${API_URL}/misiones/semana`),
+            fetch(`${API_URL}/eventos/semana?dias=14`)
+        ]);
+
+        const misionesData = await misionesRes.json();
+        const eventosData = await eventosRes.json();
+
+        const misiones = (misionesData.success && misionesData.misiones) ? misionesData.misiones : [];
+        const eventos = (eventosData.success && eventosData.eventos) ? eventosData.eventos : [];
+
+        _semanaCache = { misiones, eventos };
+        renderSemana(misiones, eventos);
+    } catch (error) {
+        console.error('[Semana] Error loading:', error);
+        if (content) content.innerHTML = '<div class="text-center py-10 text-primary font-mono text-sm">/// AUSPEX FAILURE ///</div>';
+    } finally {
+        if (loading) loading.classList.add('hidden');
+    }
+}
+
+function renderSemana(misiones, eventos) {
+    const content = document.getElementById('semana-content');
+    if (!content) return;
+    content.innerHTML = '';
+
+    // Calcular lunes de esta semana
+    const ahora = new Date();
+    const diaSemana = ahora.getDay(); // 0=dom, 1=lun...
+    const diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+    const lunes = new Date(ahora);
+    lunes.setDate(ahora.getDate() + diffLunes);
+    lunes.setHours(0, 0, 0, 0);
+
+    const hoyStr = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+
+    // Generar 2 semanas
+    for (let w = 0; w < 2; w++) {
+        const inicioSemana = new Date(lunes);
+        inicioSemana.setDate(lunes.getDate() + w * 7);
+
+        const finSemana = new Date(inicioSemana);
+        finSemana.setDate(inicioSemana.getDate() + 6);
+
+        // Calcular número de semana ISO
+        const numSemana = getISOWeekNumber(inicioSemana);
+
+        // Bloque de semana
+        const bloque = document.createElement('div');
+        bloque.className = 'semana-bloque';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'semana-bloque-header';
+        header.innerHTML = `
+            <span class="semana-bloque-titulo">${w === 0 ? '/// ' : ''}SEMANA ${numSemana}${w === 0 ? ' ///' : ''}</span>
+            <span class="semana-bloque-rango">${formatDDMM(inicioSemana)} – ${formatDDMM(finSemana)}</span>
+        `;
+        bloque.appendChild(header);
+
+        // Grid 7 días
+        const grid = document.createElement('div');
+        grid.className = 'semana-grid';
+
+        for (let d = 0; d < 7; d++) {
+            const dia = new Date(inicioSemana);
+            dia.setDate(inicioSemana.getDate() + d);
+            const fechaStr = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, '0')}-${String(dia.getDate()).padStart(2, '0')}`;
+            const esHoy = fechaStr === hoyStr;
+            const esPasado = fechaStr < hoyStr;
+
+            // Filtrar misiones y eventos del día
+            const misionesDia = misiones.filter(m => m.deadline === fechaStr);
+            const eventosDia = eventos.filter(e => {
+                const eFecha = e.fecha || e.deadline;
+                return eFecha === fechaStr;
+            });
+
+            // Ordenar misiones: criticas → importantes → opcionales
+            const ordenCat = { critica: 0, importante: 1, opcional: 2 };
+            misionesDia.sort((a, b) => (ordenCat[a.categoria] ?? 3) - (ordenCat[b.categoria] ?? 3));
+
+            // Card del día
+            const card = document.createElement('div');
+            card.className = `semana-dia${esHoy ? ' dia-hoy' : ''}${esPasado ? ' dia-pasado' : ''}`;
+
+            // Header del día
+            const diaHeader = document.createElement('div');
+            diaHeader.className = 'semana-dia-header';
+            diaHeader.innerHTML = `
+                <span class="semana-dia-nombre">${DIAS_NOMBRES[d]}</span>
+                <span class="semana-dia-numero">${dia.getDate()}</span>
+                ${esHoy ? '<span class="semana-dia-badge">HOY</span>' : ''}
+            `;
+            card.appendChild(diaHeader);
+
+            // Barra de progreso
+            const totalMisiones = misionesDia.length;
+            const completadas = misionesDia.filter(m => m.completada).length;
+            if (totalMisiones > 0) {
+                const progreso = document.createElement('div');
+                progreso.className = 'semana-progreso';
+                const fill = document.createElement('div');
+                fill.className = 'semana-progreso-fill';
+                fill.style.width = `${(completadas / totalMisiones) * 100}%`;
+                progreso.appendChild(fill);
+                card.appendChild(progreso);
+            }
+
+            // Items container
+            const items = document.createElement('div');
+            items.className = 'semana-items';
+
+            // Eventos
+            eventosDia.forEach(ev => {
+                const tipo = ev.frontmatter?.tipo || ev.tipo || 'evento';
+                const color = EVENTO_COLORS[tipo] || '#4169e1';
+                const nombre = ev.titulo || ev.id || '???';
+                const item = document.createElement('div');
+                item.className = 'semana-evento';
+                item.style.borderLeftColor = color;
+                item.innerHTML = `<span class="semana-evento-nombre">${nombre}</span>`;
+                items.appendChild(item);
+            });
+
+            // Misiones
+            if (misionesDia.length === 0 && eventosDia.length === 0) {
+                const vacio = document.createElement('div');
+                vacio.className = 'semana-dia-vacio';
+                vacio.textContent = '—';
+                items.appendChild(vacio);
+            } else {
+                misionesDia.forEach(m => {
+                    const cat = m.categoria || 'opcional';
+                    const color = CATEGORIA_COLORS[cat] || '#6b7280';
+                    const item = document.createElement('div');
+                    item.className = `semana-item${m.completada ? ' completada' : ''}`;
+                    item.style.borderLeftColor = color;
+                    item.dataset.misionId = m.id;
+
+                    let html = '';
+                    if (!m.completada) {
+                        html += `<input type="checkbox" class="semana-item-cb" data-id="${m.id}" data-titulo="${(m.titulo || '').replace(/"/g, '&quot;')}" data-xp="${m['puntos-xp'] || 0}">`;
+                    }
+                    html += `<span class="semana-item-nombre">${m.titulo || m.id}</span>`;
+                    if (m['puntos-xp']) {
+                        html += `<span class="semana-item-xp">${m['puntos-xp']}</span>`;
+                    }
+                    item.innerHTML = html;
+                    items.appendChild(item);
+                });
+            }
+
+            card.appendChild(items);
+            grid.appendChild(card);
+        }
+
+        bloque.appendChild(grid);
+        content.appendChild(bloque);
+    }
+
+    // Event listeners for checkboxes
+    content.querySelectorAll('.semana-item-cb').forEach(cb => {
+        cb.addEventListener('change', async (e) => {
+            if (!e.target.checked) return;
+            const id = e.target.dataset.id;
+            const titulo = e.target.dataset.titulo;
+            const xp = parseInt(e.target.dataset.xp) || 0;
+
+            const item = e.target.closest('.semana-item');
+            if (item) item.classList.add('completada');
+
+            // Update progress bar
+            const card = e.target.closest('.semana-dia');
+            if (card) {
+                const allItems = card.querySelectorAll('.semana-item');
+                const doneItems = card.querySelectorAll('.semana-item.completada');
+                const bar = card.querySelector('.semana-progreso-fill');
+                if (bar && allItems.length > 0) {
+                    bar.style.width = `${(doneItems.length / allItems.length) * 100}%`;
+                }
+            }
+
+            showToast(`+${xp} XP`, 'success');
+
+            try {
+                const res = await fetch(`${API_URL}/misiones/${encodeURIComponent(id)}/completar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    console.warn('[Semana] Complete failed:', data.error);
+                }
+            } catch (err) {
+                console.warn('[Semana] Complete error:', err.message);
+            }
+
+            // Invalidate cache so next load is fresh
+            _semanaCache = null;
+        });
+    });
+}
+
+function getISOWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+function formatDDMM(date) {
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ==========================================
+//  ANUAL VIEW - Linear Year Calendar
+// ==========================================
+
+const ANUAL_LEGEND = [
+    { color: '#dc2626', label: 'Criterio-V.' },
+    { color: '#f97316', label: 'Misiones' },
+    { color: '#dc143c', label: 'Avisos' },
+    { color: '#4169e1', label: 'Eventos' },
+    { color: '#00ced1', label: 'Vacaciones' },
+    { color: '#ff69b4', label: 'Cumpleaños' }
+];
+
+const MESES_CORTOS = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+const DIAS_SEMANA = ['L','M','X','J','V','S','D'];
+
+async function initAnual() {
+    renderAnualLegend();
+    await loadAnualData(_anualYear);
+}
+
+function renderAnualLegend() {
+    const container = document.getElementById('anual-legend');
+    if (!container) return;
+    container.innerHTML = ANUAL_LEGEND.map(item =>
+        `<div class="anual-legend-item"><div class="anual-legend-dot" style="background:${item.color}"></div><span class="anual-legend-label">${item.label}</span></div>`
+    ).join('');
+}
+
+async function loadAnualData(año) {
+    const calendar = document.getElementById('anual-calendar');
+    const loading = document.getElementById('anual-loading');
+
+    if (_anualCache[año]) {
+        renderAnualCalendar(_anualCache[año], año);
+        return;
+    }
+
+    if (calendar) calendar.innerHTML = '';
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+        const res = await fetch(`${API_URL}/calendario/anual?año=${año}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.success) {
+            _anualCache[año] = data;
+            renderAnualCalendar(data, año);
+        }
+    } catch (error) {
+        console.error('[Anual] Error loading:', error);
+        if (calendar) calendar.innerHTML = '<div class="text-center py-10 text-primary font-mono text-sm">/// AUSPEX FAILURE ///</div>';
+    } finally {
+        if (loading) loading.classList.add('hidden');
+    }
+}
+
+function renderAnualCalendar(data, año) {
+    const calendar = document.getElementById('anual-calendar');
+    if (!calendar) return;
+    calendar.innerHTML = '';
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const isCurrentYear = año === today.getFullYear();
+    const totalCols = 42;
+
+    // === WEEKDAY HEADER ROW ===
+    const headerRow = document.createElement('div');
+    headerRow.className = 'anual-header-row';
+
+    const emptyHeader = document.createElement('div');
+    emptyHeader.style.cssText = 'display:flex;align-items:center;justify-content:center;color:#c5a065;font-size:8px;font-family:monospace;font-weight:bold;';
+    emptyHeader.textContent = 'MES';
+    headerRow.appendChild(emptyHeader);
+
+    for (let w = 0; w < 6; w++) {
+        DIAS_SEMANA.forEach((dia, idx) => {
+            const label = document.createElement('div');
+            label.className = `anual-weekday${idx >= 5 ? ' weekend' : ''}`;
+            label.textContent = dia;
+            headerRow.appendChild(label);
+        });
+    }
+    calendar.appendChild(headerRow);
+
+    // === 12 MONTH ROWS ===
+    const planetaMap = {};
+    (data.planetas || []).forEach(p => { planetaMap[p.numeroMes] = p; });
+
+    for (let mes = 1; mes <= 12; mes++) {
+        const monthRow = document.createElement('div');
+        monthRow.className = 'anual-month-row';
+
+        // --- Month label ---
+        const planeta = planetaMap[mes];
+        const monthLabel = document.createElement('div');
+        monthLabel.className = 'anual-month-label';
+
+        let imgHtml = '';
+        if (planeta && planeta.image) {
+            const imgFile = typeof planeta.image === 'string' ? planeta.image.replace(/[\[\]]/g, '').trim() : '';
+            if (imgFile) {
+                imgHtml = `<img src="/api/planetas/imagen/${encodeURIComponent(imgFile)}" class="anual-month-img" onerror="this.style.display='none'" alt="">`;
+            }
+        }
+
+        monthLabel.innerHTML = `${imgHtml}<div class="anual-month-text"><div>${MESES_CORTOS[mes - 1]}</div>${planeta ? `<div style="font-size:7px;color:#666;font-weight:normal">${planeta.nombre}</div>` : ''}</div>`;
+
+        if (planeta) {
+            monthLabel.addEventListener('click', () => {
+                window.location.href = `planeta-detalle.html?id=${encodeURIComponent(planeta.id)}&año=${año}`;
+            });
+        }
+        monthRow.appendChild(monthLabel);
+
+        // --- Day cells ---
+        const firstDay = new Date(año, mes - 1, 1);
+        const daysInMonth = new Date(año, mes, 0).getDate();
+        let firstWeekday = firstDay.getDay();
+        firstWeekday = firstWeekday === 0 ? 7 : firstWeekday; // 1=Mon..7=Sun
+
+        // Empty cells before day 1
+        for (let i = 0; i < firstWeekday - 1; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'anual-day empty';
+            monthRow.appendChild(empty);
+        }
+
+        // Day cells
+        for (let dia = 1; dia <= daysInMonth; dia++) {
+            const fechaStr = `${año}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+            const dateObj = new Date(año, mes - 1, dia);
+            const weekday = dateObj.getDay();
+            const isWeekend = weekday === 0 || weekday === 6;
+            const isToday = isCurrentYear && fechaStr === todayStr;
+
+            const dayItems = data.dias?.[fechaStr] || [];
+            const hasItems = dayItems.length > 0;
+            const inVacation = (data.vacaciones || []).some(v => fechaStr >= v.fechaInicio && fechaStr <= v.fechaFin);
+
+            const cell = document.createElement('div');
+            cell.className = `anual-day${isWeekend ? ' weekend' : ''}${isToday ? ' today' : ''}${hasItems ? ' has-items' : ''}`;
+
+            const numEl = document.createElement('div');
+            numEl.className = 'anual-day-num';
+            numEl.textContent = dia;
+            cell.appendChild(numEl);
+
+            if (hasItems) {
+                const dotsContainer = document.createElement('div');
+                dotsContainer.className = 'anual-dots-container';
+                const visibleItems = dayItems.slice(0, 4);
+                visibleItems.forEach(item => {
+                    const dot = document.createElement('div');
+                    dot.className = 'anual-dot';
+                    dot.style.background = item.color;
+                    dotsContainer.appendChild(dot);
+                });
+                if (dayItems.length > 4) {
+                    const moreDot = document.createElement('div');
+                    moreDot.className = 'anual-dot';
+                    moreDot.style.cssText = 'background:#888;width:3px;height:3px;';
+                    dotsContainer.appendChild(moreDot);
+                }
+                cell.appendChild(dotsContainer);
+            }
+
+            if (inVacation) {
+                const bar = document.createElement('div');
+                bar.className = 'anual-vacation-bar';
+                cell.appendChild(bar);
+            }
+
+            if (hasItems || inVacation) {
+                cell.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showAnualDayPopup(e, fechaStr, dayItems, data.vacaciones || [], año, mes, dia);
+                });
+            }
+
+            monthRow.appendChild(cell);
+        }
+
+        // Empty cells after last day
+        const cellsUsed = (firstWeekday - 1) + daysInMonth;
+        for (let i = cellsUsed; i < totalCols; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'anual-day empty';
+            monthRow.appendChild(empty);
+        }
+
+        calendar.appendChild(monthRow);
+    }
+}
+
+function changeAnualYear(año) {
+    _anualYear = año;
+    document.querySelectorAll('[data-anual-year]').forEach(btn => {
+        const btnYear = parseInt(btn.dataset.anualYear);
+        if (btnYear === año) {
+            btn.classList.add('carta-year-pill-active');
+        } else {
+            btn.classList.remove('carta-year-pill-active');
+        }
+    });
+    loadAnualData(año);
+}
+
+let _anualPopup = null;
+
+function showAnualDayPopup(event, fechaStr, items, vacaciones, año, mes, dia) {
+    closeAnualPopup();
+
+    const popup = document.createElement('div');
+    popup.className = 'anual-popup';
+    popup.id = 'anual-day-popup';
+
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const date = new Date(año, mes - 1, dia);
+    const dayName = dayNames[date.getDay()];
+
+    popup.innerHTML = `<div class="anual-popup-header">${dayName} ${dia} ${MESES_NOMBRES[mes - 1]} ${año}</div>`;
+
+    const vacacionesDia = vacaciones.filter(v => fechaStr >= v.fechaInicio && fechaStr <= v.fechaFin);
+    const allItems = [
+        ...vacacionesDia.map(v => ({ color: '#00ced1', titulo: v.titulo, tipo: 'vacaciones' })),
+        ...items
+    ];
+
+    if (allItems.length === 0) {
+        popup.innerHTML += '<div style="color:#666;font-size:10px;font-family:monospace;">Sin eventos</div>';
+    } else {
+        allItems.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'anual-popup-item';
+            el.innerHTML = `<div class="anual-popup-dot" style="background:${item.color}"></div><span>${item.titulo || 'Sin título'}</span>`;
+            popup.appendChild(el);
+        });
+    }
+
+    document.body.appendChild(popup);
+    _anualPopup = popup;
+
+    const rect = event.target.closest('.anual-day').getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+
+    let left = rect.left + rect.width / 2 - popupRect.width / 2;
+    let top = rect.bottom + 8;
+
+    if (left < 8) left = 8;
+    if (left + popupRect.width > window.innerWidth - 8) left = window.innerWidth - popupRect.width - 8;
+    if (top + popupRect.height > window.innerHeight - 8) top = rect.top - popupRect.height - 8;
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+
+    setTimeout(() => {
+        document.addEventListener('click', closeAnualPopup, { once: true });
+    }, 10);
+}
+
+function closeAnualPopup() {
+    if (_anualPopup) {
+        _anualPopup.remove();
+        _anualPopup = null;
     }
 }

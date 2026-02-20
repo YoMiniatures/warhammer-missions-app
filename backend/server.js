@@ -693,6 +693,73 @@ app.get('/api/misiones/criterios-victoria', async (req, res) => {
   }
 });
 
+// GET /api/misiones/semana - Misiones de las próximas 2 semanas (lunes actual → domingo siguiente)
+app.get('/api/misiones/semana', async (req, res) => {
+  try {
+    const añosACargar = detectarAñosACargar();
+
+    // Calcular rango: lunes de esta semana → domingo de la semana siguiente
+    const ahora = new Date();
+    const diaSemana = ahora.getDay(); // 0=dom, 1=lun...
+    const diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+
+    const lunes = new Date(ahora);
+    lunes.setDate(ahora.getDate() + diffLunes);
+    lunes.setHours(0, 0, 0, 0);
+
+    const domingoSig = new Date(lunes);
+    domingoSig.setDate(lunes.getDate() + 13); // 14 días - 1
+
+    const rangoInicio = `${lunes.getFullYear()}-${String(lunes.getMonth() + 1).padStart(2, '0')}-${String(lunes.getDate()).padStart(2, '0')}`;
+    const rangoFin = `${domingoSig.getFullYear()}-${String(domingoSig.getMonth() + 1).padStart(2, '0')}-${String(domingoSig.getDate()).padStart(2, '0')}`;
+
+    console.log(`[SEMANA] Rango: ${rangoInicio} → ${rangoFin}`);
+
+    // Cargar misiones de todos los años necesarios
+    let todasMisiones = [];
+    for (const año of añosACargar) {
+      const rutaActivas = getRutaMisionesActivas(año);
+      const rutaOpcionales = getRutaMisionesOpcionales(año);
+      const rutaCompletadas = getRutaMisionesCompletadas(año);
+
+      if (rutaActivas) {
+        const activas = await cargarMisiones(rutaActivas);
+        todasMisiones = [...todasMisiones, ...activas];
+      }
+      if (rutaOpcionales) {
+        const opcionales = await cargarMisiones(rutaOpcionales);
+        todasMisiones = [...todasMisiones, ...opcionales];
+      }
+      if (rutaCompletadas) {
+        const completadas = await cargarMisiones(rutaCompletadas);
+        todasMisiones = [...todasMisiones, ...completadas];
+      }
+    }
+
+    // Filtrar por deadline dentro del rango
+    const misionesSemana = todasMisiones.filter(m => {
+      if (!m.deadline) return false;
+      return m.deadline >= rangoInicio && m.deadline <= rangoFin;
+    });
+
+    // Ordenar por deadline
+    misionesSemana.sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''));
+
+    console.log(`[SEMANA] Total: ${todasMisiones.length} cargadas, ${misionesSemana.length} en rango`);
+
+    res.json({
+      success: true,
+      total: misionesSemana.length,
+      rangoInicio,
+      rangoFin,
+      misiones: misionesSemana
+    });
+  } catch (error) {
+    console.error('Error en GET /api/misiones/semana:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/eventos/anual - Obtener TODOS los eventos del año actual
 // También disponible como /api/eventos/año para compatibilidad
 app.get(['/api/eventos/anual', '/api/eventos/año'], async (req, res) => {
@@ -812,6 +879,171 @@ app.get(['/api/eventos/anual', '/api/eventos/año'], async (req, res) => {
       total: 0,
       eventos: []
     });
+  }
+});
+
+// GET /api/calendario/anual - Datos completos para el calendario lineal anual
+// Query params: ?año=YYYY (default año actual)
+app.get('/api/calendario/anual', async (req, res) => {
+  try {
+    const año = parseInt(req.query.año) || new Date().getFullYear();
+
+    // 1. Cargar planetas del año
+    const rutaPlanetas = getRutaPlanetas(año);
+    let planetas = [];
+    if (rutaPlanetas && existsSync(rutaPlanetas)) {
+      const entries = await fs.readdir(rutaPlanetas, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.endsWith('.md')) {
+          const filePath = path.join(rutaPlanetas, entry.name);
+          const fileContent = await fs.readFile(filePath, 'utf-8');
+          const { data } = matter(fileContent);
+          if (data.tipo === 'planeta') {
+            const numMes = data['numero-mes'] || mesTextoANumero(data.mes);
+            const imageRaw = data.image || data.imagen || '';
+            const image = typeof imageRaw === 'string' ? imageRaw.replace(/[\[\]]/g, '').trim() : '';
+            planetas.push({
+              id: path.basename(filePath, '.md'),
+              nombre: data['nombre-planeta'] || path.basename(filePath, '.md'),
+              numeroMes: numMes,
+              image: image || null,
+              estado: data.estado || 'pendiente'
+            });
+          }
+        }
+      }
+      planetas.sort((a, b) => (a.numeroMes || 0) - (b.numeroMes || 0));
+    }
+
+    // 2. Cargar TODAS las misiones del año (activas + opcionales + completadas)
+    const diasMap = {}; // "YYYY-MM-DD" → [{tipo, titulo, color, criterioVictoria}]
+
+    const rutas = [getRutaMisionesActivas(año), getRutaMisionesOpcionales(año), getRutaMisionesCompletadas(año)];
+    for (const ruta of rutas) {
+      if (!ruta) continue;
+      const misiones = await cargarMisiones(ruta);
+      for (const m of misiones) {
+        if (!m.deadline) continue;
+        // Verificar que el deadline es del año solicitado
+        const deadlineYear = parseInt(m.deadline.split('-')[0]);
+        if (deadlineYear !== año) continue;
+
+        const cv = m.frontmatter?.['criterio-victoria'] === true;
+        const color = cv ? '#dc2626' : '#f97316';
+        if (!diasMap[m.deadline]) diasMap[m.deadline] = [];
+        diasMap[m.deadline].push({
+          tipo: 'mision',
+          titulo: m.titulo,
+          color,
+          criterioVictoria: cv
+        });
+      }
+    }
+
+    // 3. Cargar eventos/avisos/vacaciones/cumpleaños
+    let todosItems = [];
+    const rutaEventos = getRutaEventos(año);
+    if (rutaEventos) {
+      const items = await cargarArchivosRecursivos(rutaEventos, ['evento', 'aviso', 'vacaciones']);
+      todosItems = [...todosItems, ...items];
+    }
+    const cumpleaños = await cargarArchivosRecursivos(CUMPLEAÑOS_PATH, ['cumpleaños']);
+    todosItems = [...todosItems, ...cumpleaños];
+    const avisos = await cargarArchivosRecursivos(AVISOS_PATH, ['aviso']);
+    todosItems = [...todosItems, ...avisos];
+
+    // 4. Expandir recurrencias día a día (misma lógica que /api/eventos/anual)
+    const vacaciones = [];
+    const vacacionesVistas = new Set();
+
+    const inicioAño = new Date(año, 0, 1);
+    const finAño = new Date(año, 11, 31);
+
+    for (let diaActual = new Date(inicioAño); diaActual <= finAño; diaActual.setDate(diaActual.getDate() + 1)) {
+      const fechaStr = `${diaActual.getFullYear()}-${String(diaActual.getMonth() + 1).padStart(2, '0')}-${String(diaActual.getDate()).padStart(2, '0')}`;
+      const dia = diaActual.getDate();
+      const mes = diaActual.getMonth() + 1;
+      const weekday = diaActual.getDay() === 0 ? 7 : diaActual.getDay();
+
+      for (const item of todosItems) {
+        const tipo = item.frontmatter?.tipo;
+        const subtipo = item.frontmatter?.subtipo;
+        const recurrencia = item.frontmatter?.recurrencia;
+        const activo = item.frontmatter?.activo !== false;
+
+        if (subtipo === 'recurrente' && !activo) continue;
+
+        let coincide = false;
+
+        if (tipo === 'aviso') {
+          if (subtipo === 'recurrente' && recurrencia === 'semanal') {
+            coincide = item.frontmatter['dia-de-la-semana'] === weekday;
+          } else if (subtipo === 'recurrente' && recurrencia === 'mensual') {
+            coincide = item.frontmatter['dia-del-mes'] === dia;
+          } else if (subtipo === 'recurrente' && recurrencia === 'anual') {
+            coincide = item.frontmatter.mes === mes && item.frontmatter['dia-del-mes'] === dia;
+          } else if (subtipo === 'puntual') {
+            coincide = item.deadline === fechaStr;
+          }
+        } else if (tipo === 'evento') {
+          if (subtipo === 'recurrente' && recurrencia === 'semanal') {
+            coincide = item.frontmatter['dia-de-la-semana'] === weekday;
+          } else if (subtipo === 'recurrente' && recurrencia === 'mensual') {
+            coincide = item.frontmatter['dia-del-mes'] === dia;
+          } else if (subtipo === 'recurrente' && recurrencia === 'anual') {
+            coincide = item.frontmatter.mes === mes && item.frontmatter['dia-del-mes'] === dia;
+          } else if (subtipo === 'puntual') {
+            coincide = item.deadline === fechaStr;
+          }
+        } else if (tipo === 'vacaciones') {
+          const fechaInicio = normalizarFecha(item.frontmatter['fecha-inicio']);
+          const fechaFin = normalizarFecha(item.frontmatter['fecha-fin']);
+          if (fechaInicio && fechaFin && fechaStr >= fechaInicio && fechaStr <= fechaFin) {
+            // Registrar vacaciones como rango (solo una vez)
+            const vacKey = `${item.id}-${fechaInicio}-${fechaFin}`;
+            if (!vacacionesVistas.has(vacKey)) {
+              vacacionesVistas.add(vacKey);
+              vacaciones.push({ titulo: item.titulo, fechaInicio, fechaFin, color: '#00ced1' });
+            }
+            // No añadir como dot individual, se pintan como barras
+            continue;
+          } else {
+            continue;
+          }
+        } else if (tipo === 'cumpleaños') {
+          const mesEvento = mesTextoANumero(item.frontmatter.mes);
+          const diaEvento = item.frontmatter['dia-del-mes'];
+          if (mesEvento === mes && diaEvento === dia) {
+            coincide = true;
+          }
+        }
+
+        if (coincide) {
+          const colorMap = {
+            'aviso': '#dc143c',
+            'evento': '#4169e1',
+            'cumpleaños': '#ff69b4'
+          };
+          if (!diasMap[fechaStr]) diasMap[fechaStr] = [];
+          diasMap[fechaStr].push({
+            tipo,
+            titulo: item.titulo,
+            color: colorMap[tipo] || '#888'
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      año,
+      planetas,
+      dias: diasMap,
+      vacaciones
+    });
+  } catch (error) {
+    console.error('Error en GET /api/calendario/anual:', error);
+    res.json({ success: true, año: parseInt(req.query.año) || new Date().getFullYear(), planetas: [], dias: {}, vacaciones: [] });
   }
 });
 

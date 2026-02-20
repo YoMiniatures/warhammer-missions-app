@@ -183,20 +183,93 @@
         }
         .animate-slide-up { animation: slideUp 0.2s ease-out; }
         .estado-option.active { border-color: #c5a065 !important; background: rgba(197,160,101,0.1); }
+
+        /* Desktop Nav Styles */
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            color: #888;
+            transition: all 0.2s;
+            position: relative;
+            width: 100%;
+            text-decoration: none;
+        }
+        .nav-item:hover { color: #c5a065; background: #1e1617; }
+        .nav-item.active { color: #d41132; }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #d41132;
+            box-shadow: 0 0 8px rgba(212,17,50,0.8);
+        }
+        .nav-label { font-size: 8px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; }
+
+        /* Desktop responsive */
+        @media (min-width: 1024px) {
+            body { margin-left: 80px; }
+            .max-w-md { max-width: 100%; }
+        }
     </style>
 </head>
 <body>
-    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224]">
+    <!-- === DESKTOP NAV LATERAL (hidden on mobile) === -->
+    <nav id="desktop-nav" class="hidden lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-20 lg:flex lg:flex-col lg:bg-[#161011]/90 lg:border-r lg:border-[#332224]/50 lg:backdrop-blur-md lg:z-50">
+        <div class="flex items-center justify-center h-20 border-b border-[#332224]/40">
+            <span class="material-symbols-outlined text-secondary text-2xl">shield_person</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center py-4 gap-2">
+            <a href="index.html" class="nav-item">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span class="nav-label">Bridge</span>
+            </a>
+            <a href="duty.html" class="nav-item">
+                <span class="material-symbols-outlined">task_alt</span>
+                <span class="nav-label">Duty</span>
+            </a>
+            <a href="voidmap.html" class="nav-item">
+                <span class="material-symbols-outlined">public</span>
+                <span class="nav-label">Void</span>
+            </a>
+            <a href="directivas.html" class="nav-item">
+                <span class="material-symbols-outlined">target</span>
+                <span class="nav-label">Direct.</span>
+            </a>
+            <a href="cargo.html" class="nav-item">
+                <span class="material-symbols-outlined">inventory_2</span>
+                <span class="nav-label">Cargo</span>
+            </a>
+            <a href="economato.html" class="nav-item">
+                <span class="material-symbols-outlined">account_balance</span>
+                <span class="nav-label">Econo.</span>
+            </a>
+            <a href="bahia-medica.html" class="nav-item">
+                <span class="material-symbols-outlined">medical_services</span>
+                <span class="nav-label">Médica</span>
+            </a>
+        </div>
+        <div class="flex items-center justify-center h-16 border-t border-[#332224]/40">
+            <div id="desktop-status-dot" class="size-3 bg-green-500 rounded-full"></div>
+        </div>
+    </nav>
+
+    <div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-[#0f0f10] max-w-md mx-auto shadow-2xl border-x border-[#332224] lg:max-w-none lg:border-x-0 lg:shadow-none lg:mx-0 lg:ml-20 lg:w-[calc(100vw-5rem)] lg:pr-6">
 
         <!-- Scanlines overlay -->
         <div class="absolute inset-0 z-50 pointer-events-none opacity-20 scanlines h-full w-full sticky top-0"></div>
 
         <!-- === HEADER === -->
-        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg">
+        <header class="flex items-center bg-[#221618] border-b border-[#332224] p-4 pb-3 justify-between sticky top-0 z-40 shadow-lg lg:ml-0">
             <div class="flex shrink-0 items-center gap-3">
-                <a href="voidmap.html" class="flex items-center justify-center size-10 border border-[#332224] bg-[#1a1718] hover:bg-[#261e1f] transition-colors">
+                <button onclick="history.back()" class="flex items-center justify-center size-10 border border-[#332224] bg-[#1a1718] hover:bg-[#261e1f] transition-colors">
                     <span class="material-symbols-outlined text-secondary text-xl">arrow_back</span>
-                </a>
+                </button>
                 <div class="flex flex-col">
                     <span class="text-secondary text-[10px] font-bold tracking-widest uppercase">PLANET</span>
                     <span id="planet-name" class="text-white text-sm font-bold leading-none">LOADING...</span>
@@ -262,10 +335,10 @@
         </div>
 
         <!-- === MAIN CONTENT === -->
-        <div id="main-content" class="hidden">
+        <div id="main-content" class="hidden lg:px-6">
 
             <!-- Stats cards -->
-            <div class="grid grid-cols-3 gap-2 px-4 pt-4">
+            <div class="grid grid-cols-3 gap-2 px-4 pt-4 lg:px-0 lg:gap-4">
                 <div class="bg-[#1a1718] border border-[#332224] p-3 text-center">
                     <div id="stat-progress" class="text-2xl font-bold text-secondary font-display">0%</div>
                     <div class="text-[8px] text-gray-500 font-mono uppercase mt-1">Progress</div>
@@ -281,7 +354,7 @@
             </div>
 
             <!-- Progress bar -->
-            <div class="px-4 mt-3">
+            <div class="px-4 mt-3 lg:px-0">
                 <div class="h-2 bg-[#332224] rounded-full overflow-hidden">
                     <div id="progress-bar" class="h-full bg-secondary rounded-full transition-all duration-500" style="width:0%"></div>
                 </div>
@@ -292,15 +365,18 @@
             </div>
 
             <!-- Objetivo del mes -->
-            <div id="objetivo-section" class="hidden px-4 mt-4">
+            <div id="objetivo-section" class="hidden px-4 mt-4 lg:px-0">
                 <div class="bg-[#1a1718] border border-secondary/30 p-3">
                     <div class="text-[9px] text-secondary font-mono uppercase tracking-widest mb-1">Monthly Objective</div>
                     <div id="objetivo-text" class="text-gray-300 text-sm"></div>
                 </div>
             </div>
 
+            <!-- Desktop: 2-column layout for calendar + missions -->
+            <div class="lg:grid lg:grid-cols-2 lg:gap-6">
+
             <!-- Calendar section -->
-            <div class="px-4 mt-4">
+            <div class="px-4 mt-4 lg:px-0">
                 <h3 class="text-white text-sm font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-base">calendar_month</span>
                     Conquest Calendar
@@ -309,7 +385,7 @@
             </div>
 
             <!-- Missions list -->
-            <div class="px-4 mt-4 pb-24">
+            <div class="px-4 mt-4 pb-24 lg:px-0 lg:pb-6">
                 <h3 class="text-white text-sm font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-base">swords</span>
                     Planet Missions
@@ -321,10 +397,12 @@
                     <p class="text-gray-500 text-xs font-mono mt-2">/// NO MISSIONS DETECTED ///</p>
                 </div>
             </div>
+
+            </div><!-- /desktop 2-col grid -->
         </div>
 
         <!-- === BOTTOM NAVIGATION === -->
-        <nav class="fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
+        <nav class="lg:hidden fixed bottom-0 w-full max-w-md bg-[#161011] border-t border-[#332224] h-16 flex items-center justify-around z-40 backdrop-blur-md bg-opacity-95">
             <a href="index.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">dashboard</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Bridge</span>
@@ -333,10 +411,9 @@
                 <span class="material-symbols-outlined text-2xl mb-0.5">task_alt</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Duty</span>
             </a>
-            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-primary hover:bg-[#1e1617] relative">
+            <a href="voidmap.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">public</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Void</span>
-                <div class="absolute top-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(212,17,50,0.8)]"></div>
             </a>
             <a href="directivas.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">target</span>
@@ -349,6 +426,10 @@
             <a href="economato.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
                 <span class="material-symbols-outlined text-2xl mb-0.5">account_balance</span>
                 <span class="text-[9px] font-bold tracking-widest uppercase">Econo.</span>
+            </a>
+            <a href="bahia-medica.html" class="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-gray-300 hover:bg-[#1e1617]">
+                <span class="material-symbols-outlined text-2xl mb-0.5">medical_services</span>
+                <span class="text-[9px] font-bold tracking-widest uppercase">Médica</span>
             </a>
         </nav>
     </div>

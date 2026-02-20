@@ -1,7 +1,7 @@
 // Warhammer Vault - Service Worker v19.0
 // Duty+Reviews fusion (Inquisición merged into Duty)
 
-const CACHE_VERSION = 'v157';
+const CACHE_VERSION = 'v169';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
@@ -48,7 +48,8 @@ const PRECACHE_ASSETS = [
     '/assets/icons/icon-512.png',
     '/assets/ship.glb',
     '/assets/skybox.jpg',
-    '/assets/medbay-scan.jpg'
+    '/assets/medbay-scan.jpg',
+    '/nipplejs.min.js'
 ];
 
 // HTML pages for navigation fallback
