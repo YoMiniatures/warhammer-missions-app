@@ -1792,7 +1792,6 @@ function updateShipMovement(delta) {
 
     // --- HEADING-BASED STEERING ---
     let turnDelta = 0;
-    let isBraking = false;
     if (hasTarget && distToTarget > 0.05) {
         // Desired heading toward target
         shipTargetRotation = Math.atan2(targetX / distToTarget, targetZ / distToTarget);
@@ -1811,30 +1810,30 @@ function updateShipMovement(delta) {
         while (shipRotation > Math.PI) shipRotation -= Math.PI * 2;
         while (shipRotation < -Math.PI) shipRotation += Math.PI * 2;
 
-        // Throttle control with proper stopping distance
+        // --- PROPORTIONAL SPEED CAP (smooth autopilot approach) ---
         const facingAlignment = Math.cos(angleDiff); // 1=facing, -1=opposite
 
-        // Use actual velocity magnitude (includes drift) for braking calc
-        const actualSpeed = shipVelocity.length();
-        const effectiveSpeed = Math.max(shipSpeed, actualSpeed);
-        const brakingDecel = SHIP_DECEL * 2.5;
-        const stoppingDist = (effectiveSpeed * effectiveSpeed) / (2 * brakingDecel) + arriveRadius * 1.5;
+        // Max safe speed at this distance: v = sqrt(2 * decel * dist)
+        // Creates a smooth deceleration curve — the closer, the slower
+        const safeSpeed = Math.sqrt(2 * SHIP_DECEL * Math.max(0, distToTarget - arriveRadius));
+        const speedLimit = Math.min(SHIP_MAX_SPEED, safeSpeed);
 
-        if (distToTarget <= stoppingDist) {
-            // BRAKING ZONE — cut engines, hard deceleration on both speed layers
-            shipSpeed -= brakingDecel * delta;
-            if (shipSpeed < 0) shipSpeed = 0;
-            isBraking = true;
-        } else {
-            // CRUISE — throttle based on facing alignment
-            const throttle = Math.max(0, facingAlignment);
-            shipSpeed += SHIP_THRUST * throttle * delta;
-            shipSpeed = Math.min(shipSpeed, SHIP_MAX_SPEED);
+        // Throttle: accelerate only if facing target AND below speed limit
+        if (shipSpeed < speedLimit && facingAlignment > 0) {
+            shipSpeed += SHIP_THRUST * facingAlignment * delta;
+        }
 
-            // Extra drag when facing wrong direction
-            if (facingAlignment < 0.2) {
-                shipSpeed *= Math.max(0, 1 - SHIP_DECEL * 0.5 * delta);
-            }
+        // Gently bleed speed toward limit (friction, not hard brake)
+        if (shipSpeed > speedLimit) {
+            shipSpeed -= SHIP_DECEL * delta;
+            if (shipSpeed < speedLimit) shipSpeed = speedLimit;
+        }
+
+        shipSpeed = Math.max(0, shipSpeed);
+
+        // Extra drag when facing very wrong
+        if (facingAlignment < 0.1) {
+            shipSpeed *= Math.max(0, 1 - SHIP_DECEL * 0.3 * delta);
         }
     } else {
         // No target — coast and decelerate
@@ -1848,8 +1847,8 @@ function updateShipMovement(delta) {
     const desiredVelX = headX * shipSpeed;
     const desiredVelZ = headZ * shipSpeed;
 
-    // When braking, converge velocity much faster to kill drift overshoot
-    const driftRate = isBraking ? 12.0 : SHIP_DRIFT_DAMPING;
+    // Drift damping increases as ship slows (tighter control at low speed)
+    const driftRate = SHIP_DRIFT_DAMPING + (1 - shipSpeed / SHIP_MAX_SPEED) * 4.0;
     shipVelocity.x += (desiredVelX - shipVelocity.x) * driftRate * delta;
     shipVelocity.z += (desiredVelZ - shipVelocity.z) * driftRate * delta;
 
