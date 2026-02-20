@@ -162,17 +162,24 @@ let laserPulseTime = 0;
 const DOCK_SHIP_OFFSET = 0.6;   // Distance from planet surface to dock position (lateral)
 const ENGAGE_SHIP_OFFSET = 1.5; // Distance from pirate to engage position
 
-// Ship movement (free-roaming)
+// Ship movement — Gothic Armada style (heading-based, inertia, turn rate)
 let shipPosition = null; // THREE.Vector3 (initialized after THREE import)
-let shipRotation = 0;           // Facing angle (radians in XZ plane)
-let shipVelocity = null; // THREE.Vector3
-let shipTargetRotation = 0;
-const SHIP_SPEED = 3.0;
-const SHIP_ACCEL = 6.0;
-const SHIP_DECEL = 3.0;
-const SHIP_TURN_SPEED = 4.0;
+let shipRotation = 0;           // Current facing angle (radians in XZ plane)
+let shipVelocity = null; // THREE.Vector3 (actual velocity vector, may differ from heading)
+let shipTargetRotation = 0;     // Desired heading toward waypoint
+let shipSpeed = 0;              // Current scalar speed
+const SHIP_MAX_SPEED = 2.8;     // Max forward speed
+const SHIP_THRUST = 2.2;        // Forward acceleration
+const SHIP_DECEL = 2.5;         // Friction/deceleration when no thrust
+const SHIP_TURN_RATE = 1.6;     // Max radians/sec turning
+const SHIP_DRIFT_DAMPING = 3.0; // How fast lateral drift corrects toward heading
+const SHIP_BANK_ANGLE = 0.18;   // Max roll (radians) during turns
+const SHIP_BANK_SPEED = 3.0;    // How fast banking responds
+let shipBank = 0;               // Current visual bank angle
 const SHIP_Y = 0.3;
 const SHIP_MAX_DIST = 10; // Max distance from origin
+const SHIP_ARRIVE_NAV = 0.35;   // Arrival radius for planet/pirate docking
+const SHIP_ARRIVE_WP = 0.20;    // Arrival radius for free waypoints
 
 // RTS Camera (top-down angled, free pan/zoom)
 const RTS_CAM_HEIGHT = 5.5;    // Height above target (zoomed out default)
@@ -1742,72 +1749,98 @@ function updateShipMovement(delta) {
     const isNavigating = shipNavigatingTo !== null;
     if (zoomState !== 'ship' && !isNavigating) return;
 
-    let hasInput = false;
+    let hasTarget = false;
+    let targetX = 0, targetZ = 0, distToTarget = 0, arriveRadius = 0;
 
     if (isNavigating) {
         // TRACKING WAYPOINT: recompute target each frame (planets orbit!)
         const effectiveTarget = computeNavigationTarget();
         if (effectiveTarget) {
-            const dx = effectiveTarget.x - shipPosition.x;
-            const dz = effectiveTarget.z - shipPosition.z;
-            const distToTarget = Math.sqrt(dx * dx + dz * dz);
-
-            if (distToTarget < 0.25) {
-                // ARRIVED — trigger dock or engage
-                shipVelocity.set(0, 0, 0);
-                shipWaypoint = null;
-                removeWaypointMarker();
-                const navType = shipNavigatingTo;
-                const targetIndex = dockingTarget?.index;
-                shipNavigatingTo = null;
-                if (navType === 'planet') {
-                    onShipArrivedAtPlanet(targetIndex);
-                } else if (navType === 'pirate') {
-                    onShipArrivedAtPirate(targetIndex);
-                }
-                return;
-            }
-
-            // Steer toward live target
-            const dirX = dx / distToTarget;
-            const dirZ = dz / distToTarget;
-            const speedFactor = Math.min(distToTarget / 1.5, 1);
-            const targetVelX = dirX * SHIP_SPEED * speedFactor;
-            const targetVelZ = dirZ * SHIP_SPEED * speedFactor;
-            shipVelocity.x += (targetVelX - shipVelocity.x) * SHIP_ACCEL * delta;
-            shipVelocity.z += (targetVelZ - shipVelocity.z) * SHIP_ACCEL * delta;
-            shipTargetRotation = Math.atan2(dirX, dirZ);
-            hasInput = true;
+            targetX = effectiveTarget.x - shipPosition.x;
+            targetZ = effectiveTarget.z - shipPosition.z;
+            distToTarget = Math.sqrt(targetX * targetX + targetZ * targetZ);
+            arriveRadius = SHIP_ARRIVE_NAV;
+            hasTarget = true;
         }
     } else if (shipWaypoint) {
-        // STATIC WAYPOINT: free movement click-to-move
-        const dx = shipWaypoint.x - shipPosition.x;
-        const dz = shipWaypoint.z - shipPosition.z;
-        const distToTarget = Math.sqrt(dx * dx + dz * dz);
+        targetX = shipWaypoint.x - shipPosition.x;
+        targetZ = shipWaypoint.z - shipPosition.z;
+        distToTarget = Math.sqrt(targetX * targetX + targetZ * targetZ);
+        arriveRadius = SHIP_ARRIVE_WP;
+        hasTarget = true;
+    }
 
-        if (distToTarget < 0.15) {
+    // --- ARRIVAL CHECK ---
+    if (hasTarget && distToTarget < arriveRadius) {
+        if (isNavigating) {
+            shipSpeed = 0;
+            shipVelocity.set(0, 0, 0);
             shipWaypoint = null;
             removeWaypointMarker();
+            const navType = shipNavigatingTo;
+            const targetIndex = dockingTarget?.index;
+            shipNavigatingTo = null;
+            if (navType === 'planet') onShipArrivedAtPlanet(targetIndex);
+            else if (navType === 'pirate') onShipArrivedAtPirate(targetIndex);
+            return;
         } else {
-            const dirX = dx / distToTarget;
-            const dirZ = dz / distToTarget;
-            const speedFactor = Math.min(distToTarget / 1.5, 1);
-            const targetVelX = dirX * SHIP_SPEED * speedFactor;
-            const targetVelZ = dirZ * SHIP_SPEED * speedFactor;
-            shipVelocity.x += (targetVelX - shipVelocity.x) * SHIP_ACCEL * delta;
-            shipVelocity.z += (targetVelZ - shipVelocity.z) * SHIP_ACCEL * delta;
-            shipTargetRotation = Math.atan2(dirX, dirZ);
-            hasInput = true;
+            shipWaypoint = null;
+            removeWaypointMarker();
+            hasTarget = false;
         }
     }
 
-    if (!hasInput) {
-        shipVelocity.x *= Math.max(0, 1 - SHIP_DECEL * delta);
-        shipVelocity.z *= Math.max(0, 1 - SHIP_DECEL * delta);
-        if (shipVelocity.length() < 0.01) {
-            shipVelocity.set(0, 0, 0);
+    // --- HEADING-BASED STEERING ---
+    let turnDelta = 0;
+    if (hasTarget && distToTarget > 0.05) {
+        // Desired heading toward target
+        shipTargetRotation = Math.atan2(targetX / distToTarget, targetZ / distToTarget);
+
+        // Angular difference (shortest path)
+        let angleDiff = shipTargetRotation - shipRotation;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        // Turn toward target at limited rate
+        const maxTurn = SHIP_TURN_RATE * delta;
+        turnDelta = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+        shipRotation += turnDelta;
+
+        // Normalize rotation
+        while (shipRotation > Math.PI) shipRotation -= Math.PI * 2;
+        while (shipRotation < -Math.PI) shipRotation += Math.PI * 2;
+
+        // Throttle control: slow down when facing away, or when approaching target
+        const facingAlignment = Math.cos(angleDiff); // 1=facing, -1=opposite
+        const approachBrake = Math.min(distToTarget / 2.0, 1.0); // Decelerate near target
+        const throttle = Math.max(0, facingAlignment) * approachBrake;
+
+        // Accelerate forward along CURRENT heading
+        shipSpeed += SHIP_THRUST * throttle * delta;
+        shipSpeed = Math.min(shipSpeed, SHIP_MAX_SPEED);
+
+        // If facing very wrong, also apply some braking
+        if (facingAlignment < 0.2) {
+            shipSpeed *= Math.max(0, 1 - SHIP_DECEL * 0.5 * delta);
         }
+    } else {
+        // No target — coast and decelerate
+        shipSpeed *= Math.max(0, 1 - SHIP_DECEL * delta);
+        if (shipSpeed < 0.01) shipSpeed = 0;
     }
+
+    // --- VELOCITY: blend heading direction with inertia ---
+    // Ship's heading vector (where the bow points)
+    const headX = Math.sin(shipRotation);
+    const headZ = Math.cos(shipRotation);
+
+    // Desired velocity along heading
+    const desiredVelX = headX * shipSpeed;
+    const desiredVelZ = headZ * shipSpeed;
+
+    // Drift damping: gradually align actual velocity with heading (simulates lateral thruster correction)
+    shipVelocity.x += (desiredVelX - shipVelocity.x) * SHIP_DRIFT_DAMPING * delta;
+    shipVelocity.z += (desiredVelZ - shipVelocity.z) * SHIP_DRIFT_DAMPING * delta;
 
     // Apply velocity
     shipPosition.x += shipVelocity.x * delta;
@@ -1821,18 +1854,18 @@ function updateShipMovement(delta) {
         shipPosition.z *= SHIP_MAX_DIST / dist;
     }
 
-    // Smooth rotation
-    shipRotation = lerpAngle(shipRotation, shipTargetRotation, SHIP_TURN_SPEED * delta);
+    // --- VISUAL: banking on turns ---
+    const targetBank = -(turnDelta / (SHIP_TURN_RATE * delta || 1)) * SHIP_BANK_ANGLE;
+    shipBank += (targetBank - shipBank) * SHIP_BANK_SPEED * delta;
 
     // Apply to Three.js object
     imperialShip.position.copy(shipPosition);
-    imperialShip.position.y += Math.sin(Date.now() * 0.0008) * 0.015; // hover
-    imperialShip.rotation.set(0, shipRotation, Math.sin(Date.now() * 0.0006) * 0.008);
+    imperialShip.position.y += Math.sin(Date.now() * 0.0008) * 0.015; // hover bob
+    imperialShip.rotation.set(0, shipRotation, shipBank);
 
     // Engine glow intensity based on speed
     if (engineGlow) {
-        const speed = shipVelocity.length();
-        engineGlow.intensity = (speed / SHIP_SPEED) * 2;
+        engineGlow.intensity = (shipSpeed / SHIP_MAX_SPEED) * 2;
     }
 
     // Animate waypoint marker (rotate outer ring + pulse)
@@ -2400,6 +2433,8 @@ function switchYear(año) {
     controls.target.set(OVERVIEW_TARGET.x, OVERVIEW_TARGET.y, OVERVIEW_TARGET.z);
     shipPosition.set(0, SHIP_Y, 0);
     shipVelocity.set(0, 0, 0);
+    shipSpeed = 0;
+    shipBank = 0;
 
     // Clean up imperial ship
     if (imperialShip) {
