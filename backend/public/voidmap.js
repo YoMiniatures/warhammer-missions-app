@@ -1792,6 +1792,7 @@ function updateShipMovement(delta) {
 
     // --- HEADING-BASED STEERING ---
     let turnDelta = 0;
+    let isBraking = false;
     if (hasTarget && distToTarget > 0.05) {
         // Desired heading toward target
         shipTargetRotation = Math.atan2(targetX / distToTarget, targetZ / distToTarget);
@@ -1813,14 +1814,17 @@ function updateShipMovement(delta) {
         // Throttle control with proper stopping distance
         const facingAlignment = Math.cos(angleDiff); // 1=facing, -1=opposite
 
-        // Calculate stopping distance: v² / (2 * decel) + safety margin
-        const brakingDecel = SHIP_DECEL * 1.8;
-        const stoppingDist = (shipSpeed * shipSpeed) / (2 * brakingDecel) + arriveRadius;
+        // Use actual velocity magnitude (includes drift) for braking calc
+        const actualSpeed = shipVelocity.length();
+        const effectiveSpeed = Math.max(shipSpeed, actualSpeed);
+        const brakingDecel = SHIP_DECEL * 2.5;
+        const stoppingDist = (effectiveSpeed * effectiveSpeed) / (2 * brakingDecel) + arriveRadius * 1.5;
 
         if (distToTarget <= stoppingDist) {
-            // BRAKING ZONE — cut engines, active deceleration
+            // BRAKING ZONE — cut engines, hard deceleration on both speed layers
             shipSpeed -= brakingDecel * delta;
             if (shipSpeed < 0) shipSpeed = 0;
+            isBraking = true;
         } else {
             // CRUISE — throttle based on facing alignment
             const throttle = Math.max(0, facingAlignment);
@@ -1839,17 +1843,15 @@ function updateShipMovement(delta) {
     }
 
     // --- VELOCITY: blend heading direction with inertia ---
-    // Ship's heading vector (where the bow points)
     const headX = Math.sin(shipRotation);
     const headZ = Math.cos(shipRotation);
-
-    // Desired velocity along heading
     const desiredVelX = headX * shipSpeed;
     const desiredVelZ = headZ * shipSpeed;
 
-    // Drift damping: gradually align actual velocity with heading (simulates lateral thruster correction)
-    shipVelocity.x += (desiredVelX - shipVelocity.x) * SHIP_DRIFT_DAMPING * delta;
-    shipVelocity.z += (desiredVelZ - shipVelocity.z) * SHIP_DRIFT_DAMPING * delta;
+    // When braking, converge velocity much faster to kill drift overshoot
+    const driftRate = isBraking ? 12.0 : SHIP_DRIFT_DAMPING;
+    shipVelocity.x += (desiredVelX - shipVelocity.x) * driftRate * delta;
+    shipVelocity.z += (desiredVelZ - shipVelocity.z) * driftRate * delta;
 
     // Apply velocity
     shipPosition.x += shipVelocity.x * delta;

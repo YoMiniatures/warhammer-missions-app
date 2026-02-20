@@ -1,7 +1,7 @@
 // Warhammer Vault - Service Worker v19.0
 // Duty+Reviews fusion (Inquisición merged into Duty)
 
-const CACHE_VERSION = 'v171';
+const CACHE_VERSION = 'v172';
 const STATIC_CACHE = `wh-vault-static-${CACHE_VERSION}`;
 const API_CACHE = `wh-vault-api-${CACHE_VERSION}`;
 
