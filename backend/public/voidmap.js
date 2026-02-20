@@ -1810,18 +1810,27 @@ function updateShipMovement(delta) {
         while (shipRotation > Math.PI) shipRotation -= Math.PI * 2;
         while (shipRotation < -Math.PI) shipRotation += Math.PI * 2;
 
-        // Throttle control: slow down when facing away, or when approaching target
+        // Throttle control with proper stopping distance
         const facingAlignment = Math.cos(angleDiff); // 1=facing, -1=opposite
-        const approachBrake = Math.min(distToTarget / 2.0, 1.0); // Decelerate near target
-        const throttle = Math.max(0, facingAlignment) * approachBrake;
 
-        // Accelerate forward along CURRENT heading
-        shipSpeed += SHIP_THRUST * throttle * delta;
-        shipSpeed = Math.min(shipSpeed, SHIP_MAX_SPEED);
+        // Calculate stopping distance: v² / (2 * decel) + safety margin
+        const brakingDecel = SHIP_DECEL * 1.8;
+        const stoppingDist = (shipSpeed * shipSpeed) / (2 * brakingDecel) + arriveRadius;
 
-        // If facing very wrong, also apply some braking
-        if (facingAlignment < 0.2) {
-            shipSpeed *= Math.max(0, 1 - SHIP_DECEL * 0.5 * delta);
+        if (distToTarget <= stoppingDist) {
+            // BRAKING ZONE — cut engines, active deceleration
+            shipSpeed -= brakingDecel * delta;
+            if (shipSpeed < 0) shipSpeed = 0;
+        } else {
+            // CRUISE — throttle based on facing alignment
+            const throttle = Math.max(0, facingAlignment);
+            shipSpeed += SHIP_THRUST * throttle * delta;
+            shipSpeed = Math.min(shipSpeed, SHIP_MAX_SPEED);
+
+            // Extra drag when facing wrong direction
+            if (facingAlignment < 0.2) {
+                shipSpeed *= Math.max(0, 1 - SHIP_DECEL * 0.5 * delta);
+            }
         }
     } else {
         // No target — coast and decelerate
